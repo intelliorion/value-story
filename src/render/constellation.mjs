@@ -37,7 +37,7 @@ ${column(DRIVER_GROUPS.efficiency, COL_W + PAD, primary, sec, GROUP_LABELS.effic
 }
 
 export const CONSTELLATION_CSS = `
-.vs-constellation{margin:0;padding:0 var(--vs-gutter)}
+.vs-constellation{margin:calc(var(--vs-unit)*4) 0 0;padding:0;max-width:720px}
 .vs-constellation svg{width:100%;height:auto;overflow:visible}
 .vs-node text{font-family:var(--vs-font-display);font-size:14px;
   fill:var(--vs-ink-faint);dominant-baseline:middle}

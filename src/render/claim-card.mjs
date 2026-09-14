@@ -69,28 +69,37 @@ ${assumption}
 }
 
 export const CLAIM_CARD_CSS = `
-.vs-claim{padding:calc(var(--vs-unit)*3);border-radius:var(--vs-radius);
+/* F1: cards flow naturally -- metric, delta, tier, then note/owner. Nothing is
+   pushed to the bottom with an auto margin, so a short measured card beside a
+   taller estimated one never develops a hole in its middle. The grid still
+   stretches the boxes so their borders line up. */
+.vs-claim{padding:calc(var(--vs-unit)*3.5);border-radius:var(--vs-radius);
   background:var(--vs-surface);border:1px solid var(--vs-rule)}
 .vs-claim__metric{font-family:var(--vs-font-display);font-size:var(--vs-h2);
-  font-weight:600;letter-spacing:-0.02em;margin:0 0 calc(var(--vs-unit)*2)}
+  font-weight:600;letter-spacing:-0.02em;line-height:1.25;margin:0}
 .vs-claim__delta{font-family:var(--vs-font-display);font-size:var(--vs-h1);
-  font-variant-numeric:tabular-nums;letter-spacing:-0.03em;margin:0;
+  font-weight:700;font-variant-numeric:tabular-nums;letter-spacing:-0.035em;
+  line-height:1.05;margin:calc(var(--vs-unit)*3) 0 0;
   display:flex;align-items:baseline;gap:calc(var(--vs-unit)*1.5);flex-wrap:wrap}
 .vs-claim__from{color:var(--vs-ink-faint);text-decoration:line-through;
   text-decoration-thickness:1px}
-.vs-claim__arrow{color:var(--vs-ink-faint)}
+.vs-claim__arrow{color:var(--vs-ink-faint);font-size:0.5em}
 .vs-claim__unit{font-family:var(--vs-font-text);font-size:var(--vs-body);
-  color:var(--vs-ink-dim)}
+  font-weight:400;letter-spacing:0;color:var(--vs-ink-dim);white-space:nowrap}
 .vs-claim__tier{font-family:var(--vs-font-display);font-size:var(--vs-micro);
-  text-transform:uppercase;letter-spacing:0.12em;color:var(--vs-ink-dim);
-  margin:calc(var(--vs-unit)*2) 0 0}
-.vs-claim__assumption,.vs-claim__owner{font-family:var(--vs-font-text);
-  font-size:var(--vs-micro);color:var(--vs-ink-dim);margin:calc(var(--vs-unit)) 0 0}
+  text-transform:uppercase;letter-spacing:0.16em;color:var(--vs-ink-dim);
+  margin:calc(var(--vs-unit)*2.5) 0 0}
+.vs-claim__assumption{font-family:var(--vs-font-text);font-size:var(--vs-small);
+  color:var(--vs-ink-dim);line-height:1.55;margin:calc(var(--vs-unit)*1.5) 0 0}
+.vs-claim__owner{font-family:var(--vs-font-display);font-size:var(--vs-micro);
+  text-transform:uppercase;letter-spacing:0.1em;color:var(--vs-ink-faint);
+  margin:calc(var(--vs-unit)*1.5) 0 0}
 .vs-claim__statement{font-family:var(--vs-font-text);font-size:var(--vs-h2);
-  line-height:1.4;margin:0}
+  line-height:1.45;margin:0}
 
-/* measured: solid, accented, confident */
-.vs-claim--measured{border-color:var(--vs-rule);background:var(--vs-surface-raised)}
+/* measured: solid, raised, accented, confident */
+.vs-claim--measured{border-color:var(--vs-rule);background:var(--vs-surface-raised);
+  box-shadow:inset 0 1px 0 var(--vs-accent-soft)}
 .vs-claim--measured .vs-claim__to{color:var(--vs-accent)}
 .vs-claim--measured .vs-claim__tier{color:var(--vs-accent)}
 
@@ -98,9 +107,11 @@ export const CLAIM_CARD_CSS = `
 .vs-claim--estimated{border-style:dashed;border-color:var(--vs-ink-faint);
   background:transparent}
 .vs-claim--estimated .vs-claim__to{color:var(--vs-ink)}
+.vs-claim--estimated .vs-claim__tier{color:var(--vs-ink-dim)}
 
-/* qualitative: a different mark entirely, no numerals */
-.vs-claim--qualitative{border:none;background:transparent;
+/* qualitative: a different mark entirely, no box and no numerals */
+.vs-claim--qualitative{border:none;background:transparent;box-shadow:none;
   border-left:2px solid var(--vs-ink-faint);border-radius:0;
-  padding-left:calc(var(--vs-unit)*3)}
+  padding:calc(var(--vs-unit)*0.5) 0 calc(var(--vs-unit)*0.5) calc(var(--vs-unit)*3)}
+.vs-claim--qualitative .vs-claim__tier{color:var(--vs-ink-dim)}
 `;

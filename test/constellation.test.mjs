@@ -79,6 +79,6 @@ test('CONSTELLATION_CSS: primary state references --vs-accent', () => {
 test('CONSTELLATION_CSS: dark state maintains visibility (not hidden or opacity:0)', () => {
   const darkRules = rulesMatching(CONSTELLATION_CSS, '[data-state="dark"]');
   assert.ok(darkRules.length >= 1, 'at least one dark state rule found');
-  assert.ok(darkRules.every((r) => !r.body.includes('display:none') && !/opacity:\s*0(?:[;}]|\s)/.test(r.body)),
+  assert.ok(darkRules.every((r) => !r.body.includes('display:none') && !/opacity:\s*0(?:$|[;}]|\s)/.test(r.body)),
     'no dark rule may set display:none or opacity:0; dark drivers must remain perceivable');
 });

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { readFileSync, writeFileSync, mkdirSync, statSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, statSync, writeSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { renderCase } from '../src/render/render-case.mjs';
@@ -10,6 +10,29 @@ import { ingestFile, ingestDir, outputName } from '../src/ingest/ingest.mjs';
 import { readManifest } from '../src/manifest.mjs';
 
 installDiagnosticBoundary();
+
+// `process.exit` does not wait for an asynchronous pipe write to drain. Piping
+// a receipt into a consuming PROGRAM truncated it at the 8KB pipe buffer and
+// still exited 0 -- output that LOOKED like well-formed JSON and was not the
+// whole receipt. That is the exact failure this tool exists to refuse, so every
+// write to stdout and stderr goes through a SYNCHRONOUS fd write instead.
+// `writeSync` may write partially and may raise EAGAIN on a non-blocking pipe;
+// both are retried. EPIPE means the consumer closed first, which is not ours.
+function fdWrite(fd, text) {
+  const buffer = Buffer.from(text, 'utf8');
+  let written = 0;
+  while (written < buffer.length) {
+    try {
+      written += writeSync(fd, buffer, written, buffer.length - written);
+    } catch (error) {
+      if (error.code === 'EAGAIN') continue;
+      if (error.code === 'EPIPE') return;
+      throw error;
+    }
+  }
+}
+const out = (text) => fdWrite(1, text);
+const err = (text) => fdWrite(2, text);
 
 const HELP = {
   name: 'value-story',
@@ -75,7 +98,7 @@ for (let i = 0; i < rawArgv.length; i++) {
   if (arg === '--out' || arg === '--manifest') {
     const value = rawArgv[i + 1];
     if (value === undefined || value.startsWith('-')) {
-      process.stderr.write(arg === '--out'
+      err(arg === '--out'
         ? '--out requires a directory argument: vs ingest <path...> --out <dir>\n'
         : '--manifest requires a file argument: vs validate <input.json> --manifest <manifest.json>\n');
       process.exit(1);
@@ -86,7 +109,7 @@ for (let i = 0; i < rawArgv.length; i++) {
     continue;
   }
   if (arg === '-' || arg === '--' || arg.startsWith('-')) {
-    process.stderr.write(`unrecognised argument: ${arg}\nonly --json, --out <dir> and --manifest <path> are supported flags.\n`);
+    err(`unrecognised argument: ${arg}\nonly --json, --out <dir> and --manifest <path> are supported flags.\n`);
     process.exit(1);
   }
   positional.push(arg);
@@ -95,7 +118,7 @@ for (let i = 0; i < rawArgv.length; i++) {
 const [command, input, output] = positional;
 
 if (outDir !== null && command !== 'ingest') {
-  process.stderr.write(`--out is only meaningful for vs ingest, not vs ${command || '(none)'}\n`);
+  err(`--out is only meaningful for vs ingest, not vs ${command || '(none)'}\n`);
   process.exit(1);
 }
 
@@ -103,7 +126,7 @@ if (outDir !== null && command !== 'ingest') {
 // does not validate at all, so honouring the flag there would be theatre;
 // `ingest` produces a manifest rather than consuming one.
 if (manifestPath !== null && command !== 'validate' && command !== 'deliver') {
-  process.stderr.write(`--manifest is only meaningful for vs validate and vs deliver, not vs ${command || '(none)'}\n`);
+  err(`--manifest is only meaningful for vs validate and vs deliver, not vs ${command || '(none)'}\n`);
   process.exit(1);
 }
 
@@ -121,7 +144,7 @@ if (manifestPath !== null && command !== 'validate' && command !== 'deliver') {
  */
 function emitFailure(diagnostics, extra = {}) {
   const receipt = { schemaVersion: 1, ok: false, ...extra, diagnostics };
-  process.stderr.write(asJson
+  err(asJson
     ? `${JSON.stringify(receipt, null, 2)}\n`
     : `${diagnostics.map((d) => `${d.code}: ${d.message}\n  fix: ${d.supportedFixes[0] || 'none offered'}`).join('\n')}\n`);
   process.exit(1);
@@ -133,15 +156,28 @@ if (!command || command === 'help') {
 }
 
 if (command === 'schema') {
-  const path = fileURLToPath(new URL('../schemas/value-case.schema.json', import.meta.url));
-  process.stdout.write(readFileSync(path, 'utf8'));
+  // `vs schema` must be SELF-SUFFICIENT. SKILL.md tells an author to read this
+  // and the fixture and NOTHING ELSE, so a `$ref` into a file they were never
+  // told to open hides exactly the values they must not guess: the closed
+  // driver enumeration, and the `period` and `date` patterns. A cold authoring
+  // agent guessed the driver strings from prose and happened to be right.
+  // The definitions are inlined here rather than shipped inline so the frozen
+  // schema files stay the single source the validator is generated from.
+  const readSchema = (name) => JSON.parse(readFileSync(
+    fileURLToPath(new URL(`../schemas/${name}`, import.meta.url)), 'utf8',
+  ));
+  const common = readSchema('common.schema.json');
+  const resolved = JSON.parse(JSON.stringify(readSchema('value-case.schema.json'))
+    .replaceAll('common.schema.json#/$defs/', '#/$defs/'));
+  resolved.$defs = common.$defs;
+  out(`${JSON.stringify(resolved, null, 2)}\n`);
   process.exit(0);
 }
 
 if (command === 'ingest') {
   const paths = positional.slice(1);
   if (paths.length === 0 || !outDir) {
-    process.stderr.write('usage: vs ingest <path...> --out <dir> [--json]\n');
+    err('usage: vs ingest <path...> --out <dir> [--json]\n');
     process.exit(1);
   }
 
@@ -154,7 +190,7 @@ if (command === 'ingest') {
     } catch (error) {
       // A path the caller named explicitly and that is not there is their
       // error, not a skip: fail rather than quietly ingest less than asked.
-      process.stderr.write(`${path}: ${error.message}\n`);
+      err(`${path}: ${error.message}\n`);
       process.exit(1);
     }
     if (stats.isDirectory()) {
@@ -193,7 +229,7 @@ if (command === 'ingest') {
   if (collisions.length > 0) {
     const lines = collisions.map(([title, rows]) => `  ${JSON.stringify(title)} is the title of ${rows.length} documents:\n`
       + rows.map((r) => `    ${r.path}`).join('\n'));
-    process.stderr.write(
+    err(
       `${collisions.length} duplicate title(s) across ${documents.length} document(s). `
       + 'A citation names a document by its TITLE, so two documents with one title can never be told apart '
       + '— and a manifest written from them would resolve every citation to whichever row came first.\n'
@@ -214,7 +250,7 @@ if (command === 'ingest') {
       writeFileSync(join(outDir, doc.textFile), doc.text, 'utf8');
     }
   } catch (error) {
-    process.stderr.write(`could not write extracted text to ${outDir}: ${error.message}\n`);
+    err(`could not write extracted text to ${outDir}: ${error.message}\n`);
     process.exit(1);
   }
 
@@ -256,7 +292,7 @@ if (command === 'ingest') {
       documents: rows,
     }, null, 2)}\n`, 'utf8');
   } catch (error) {
-    process.stderr.write(`could not write the evidence manifest to ${manifestPathOut}: ${error.message}\n`);
+    err(`could not write the evidence manifest to ${manifestPathOut}: ${error.message}\n`);
     process.exit(1);
   }
 
@@ -265,14 +301,14 @@ if (command === 'ingest') {
     // consumer previously had to join `out` with a hardcoded
     // "evidence-manifest.json" to find it, which breaks silently if that
     // convention ever changes. Every other field is unchanged.
-    process.stdout.write(`${JSON.stringify({ schemaVersion: 1, ok: true, out: outDir, manifest: manifestPathOut, documents: rows, skipped }, null, 2)}\n`);
+    out(`${JSON.stringify({ schemaVersion: 1, ok: true, out: outDir, manifest: manifestPathOut, documents: rows, skipped }, null, 2)}\n`);
   } else {
     for (const row of rows) {
-      process.stdout.write(`${row.kind.padEnd(8)} ${row.sha256.slice(0, 12)} ${String(row.bytes).padStart(9)}B  ${row.path} -> ${row.textFile}\n`);
-      for (const warning of row.warnings) process.stdout.write(`  warning: ${warning}\n`);
+      out(`${row.kind.padEnd(8)} ${row.sha256.slice(0, 12)} ${String(row.bytes).padStart(9)}B  ${row.path} -> ${row.textFile}\n`);
+      for (const warning of row.warnings) out(`  warning: ${warning}\n`);
     }
-    for (const s of skipped) process.stdout.write(`SKIP     ${s.path}\n  reason: ${s.reason}\n`);
-    process.stdout.write(`${rows.length} document(s) read, ${skipped.length} skipped.\n`);
+    for (const s of skipped) out(`SKIP     ${s.path}\n  reason: ${s.reason}\n`);
+    out(`${rows.length} document(s) read, ${skipped.length} skipped.\n`);
   }
 
   // "I ingested nothing" must never look like success. A skip list on stdout
@@ -288,18 +324,18 @@ if (command === 'ingest') {
     process.exit(0); // nothing was there to read; that is not a failure
   }
   if (documents.length === 0) {
-    process.stderr.write(`ingested NOTHING: all ${skipped.length} file(s) were skipped. See the reasons in the manifest; no document was read.\n`);
+    err(`ingested NOTHING: all ${skipped.length} file(s) were skipped. See the reasons in the manifest; no document was read.\n`);
     process.exit(1);
   }
   if (skipped.length > 0) {
-    process.stderr.write(`warning: ${skipped.length} of ${attempted} file(s) were skipped and NOT ingested. See the manifest for the reasons.\n`);
+    err(`warning: ${skipped.length} of ${attempted} file(s) were skipped and NOT ingested. See the manifest for the reasons.\n`);
   }
   process.exit(0);
 }
 
 if (command === 'visual-check') {
   if (!input) {
-    process.stderr.write('usage: vs visual-check <output.html> [--json]\n');
+    err('usage: vs visual-check <output.html> [--json]\n');
     process.exit(1);
   }
 
@@ -315,7 +351,7 @@ if (command === 'visual-check') {
     // `vsClean` errors carry a message written to be read by a person. Anything
     // else is routed through the same diagnostic the rest of the CLI uses, so
     // no path here can print a raw stack trace.
-    process.stderr.write(error?.vsClean
+    err(error?.vsClean
       ? `${error.message}\n`
       : `${fallbackDiagnostic(error, input).message}\n`);
     process.exit(1);
@@ -364,10 +400,8 @@ if (command === 'visual-check') {
   // `process.exit` does not wait for an async pipe write to drain — piping this
   // command into a consumer truncated the JSON at 8KB. Exit only once the
   // stream has actually flushed.
-  const flush = (stream, text) => new Promise((done) => { stream.write(text, done); });
-
   if (result.ok) {
-    await flush(process.stdout, asJson
+    out(asJson
       ? `${JSON.stringify(receipt, null, 2)}\n`
       : `${result.viewports.map((v) => `${v.viewport.padEnd(10)} scrollWidth ${String(v.scrollWidth).padStart(5)} <= innerWidth ${v.innerWidth}`).join('\n')}\n`
         + `no horizontal overflow at ${result.viewports.length} viewport(s). This proves bounded behaviour, not that the artifact is good.\n`
@@ -390,7 +424,7 @@ if (command === 'visual-check') {
     .map((row) => `  ${row.code}: ${row.reported} of ${row.total}`)
     .join('\n');
 
-  await flush(process.stderr, asJson
+  err(asJson
     ? `${JSON.stringify(receipt, null, 2)}\n`
     : `${result.findings.map((f) => `${f.code}: ${f.message}\n  fix: ${f.supportedFixes[0]}`).join('\n')}\n`
       + `\n${summary.reported} of ${summary.total} findings reported — ${withheld}\n${perCode}\n`
@@ -400,7 +434,7 @@ if (command === 'visual-check') {
 
 if (!['render', 'validate', 'deliver'].includes(command) || !input
     || ((command === 'render' || command === 'deliver') && !output)) {
-  process.stderr.write(`unknown or incomplete command: vs ${rawArgv.join(' ') || '(none)'}\n\n`);
+  err(`unknown or incomplete command: vs ${rawArgv.join(' ') || '(none)'}\n\n`);
   printHelp('stderr');
   process.exit(1);
 }
@@ -430,7 +464,7 @@ const options = manifest ? { manifest } : {};
 
 if (command === 'render') {
   writeFileSync(output, renderCase(doc), 'utf8');
-  process.stdout.write(`${output}\n`);
+  out(`${output}\n`);
 } else if (command === 'validate') {
   const result = validateCase(doc, options);
   // `citationsVerified` rides BOTH outcomes for the same reason: silence about
@@ -442,7 +476,7 @@ if (command === 'render') {
   // source whose file has moved, or whose extraction recorded a decode
   // warning. Printing a hardcoded empty array here threw those away at the
   // last step, which made a warned source indistinguishable from a clean one.
-  process.stdout.write(asJson
+  out(asJson
     ? `${JSON.stringify({ schemaVersion: 1, ok: true, citationsVerified, diagnostics: result.diagnostics }, null, 2)}\n`
     : `ok\n${result.diagnostics.map((d) => `${d.severity}: ${d.code}: ${d.message}\n  fix: ${d.supportedFixes[0] || 'none offered'}`).join('\n')}${result.diagnostics.length ? '\n' : ''}`);
 } else {
@@ -450,7 +484,7 @@ if (command === 'render') {
   // Taken from the receipt deliverCase already computed, rather than recomputed
   // here, so the CLI cannot drift from the library's answer.
   if (!receipt.ok) emitFailure(receipt.diagnostics, { citationsVerified: receipt.citationsVerified });
-  process.stdout.write(asJson
+  out(asJson
     ? `${JSON.stringify({ schemaVersion: 1, ...receipt }, null, 2)}\n`
     : `${receipt.artifact}\n${receipt.diagnostics.map((d) => `${d.severity}: ${d.code}: ${d.message}\n  fix: ${d.supportedFixes[0] || 'none offered'}`).join('\n')}${receipt.diagnostics.length ? '\n' : ''}`);
 }

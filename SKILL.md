@@ -39,7 +39,7 @@ A manifest row carrying `warnings` was decoded with a caveat, and `validate` rep
 
 ## Fast authoring path
 
-1. Run `node bin/vs.mjs schema` and read `fixtures/example.value-case.json`. Read only those. Use the fixture for field shape, never for facts.
+1. Run `node bin/vs.mjs schema` and read `fixtures/example.value-case.json`. Read only those. Use the fixture for field shape, never for facts. `vs schema` is self-contained: every closed enumeration and every date pattern is in it. Never guess a `driver` — the ten valid values are printed under `$defs.driver.enum`.
 2. Artifact first: the next action must write the candidate JSON. Do not inspect renderer or validator source before the first candidate exists.
 3. Author the four arc slots from the source material:
    - `problem` — What problem existed?
@@ -77,12 +77,12 @@ Most source records are early-stage: a rubric score, an assumed rating, an unqua
 
 ## Authoring invariants
 
-- One primary driver. It must have at least one claim behind it.
+- One primary driver, from `$defs.driver.enum`. It must have at least one claim behind it.
 - `outcome` carries claim references only. It has no field for a number.
 - Every figure that reaches the page must come from a claim.
 - Never write a hex colour, inline style, or `<script>`. The renderer owns presentation entirely.
 - Preserve exact product names, metric names and units from the source.
-- Cite only sources you actually read.
+- Cite only sources you actually read. `evidence[].date` is `YYYY-MM-DD` and records when the DOCUMENT is from, never the precision of anything in it: if the source gives only a month, use the first of that month rather than inventing a day. `meta.period` and every `asof` are `YYYY-MM`.
 - If the sources do not support a chapter, say so plainly in your report rather than filling it with prose the evidence does not carry.
 - An outcome chapter carrying only `qualitative` claims is a **correct outcome, not a failure**. Say so in the headline. Naming the gap precisely is more useful to leadership than a manufactured number, and the tool rejects the manufactured number anyway.
 - Numerals are traced inside claim cards and the hero, and nowhere else.

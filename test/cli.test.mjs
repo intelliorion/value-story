@@ -118,3 +118,45 @@ test('the fixture exercises all three claim tiers', () => {
   assert.ok(tiers.has('estimated'));
   assert.ok(tiers.has('qualitative'));
 });
+
+// REGRESSION. `process.exit` does not wait for an asynchronous pipe write to
+// drain, so a large receipt piped into a consuming PROGRAM was truncated at the
+// 8KB pipe buffer and still exited 0 -- output that parsed as nothing, or worse,
+// could parse as less than the whole truth, under a success code. This was
+// fixed once for `visual-check` alone and returned the moment another command's
+// output grew past 8KB. Every JSON-emitting command is checked here, and the
+// assertion is that the WHOLE document arrives, not merely that some did.
+test('no JSON receipt is truncated when a program consumes it through a pipe', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'vs-pipe-'));
+  const work = join(dir, 'work');
+  const cases = [
+    ['schema'],
+    ['help', '--json'],
+    ['ingest', fileURLToPath(new URL('../test/fixtures/source', import.meta.url)), '--out', work, '--json'],
+    ['validate', FIXTURE, '--json'],
+    ['deliver', FIXTURE, join(dir, 'out.html'), '--json'],
+  ];
+  for (const args of cases) {
+    const raw = execFileSync('node', [CLI, ...args], { stdio: 'pipe' }).toString();
+    assert.notEqual(raw.length, 8192,
+      `vs ${args[0]} emitted exactly one pipe buffer: it was truncated`);
+    let parsed;
+    assert.doesNotThrow(() => { parsed = JSON.parse(raw); },
+      `vs ${args[0]} did not emit parseable JSON through a pipe`);
+    assert.ok(parsed && typeof parsed === 'object',
+      `vs ${args[0]} emitted JSON that is not an object`);
+    // A truncated object cannot round-trip: re-serialising and re-parsing the
+    // parse proves the document closed every structure it opened.
+    assert.deepEqual(JSON.parse(JSON.stringify(parsed)), parsed);
+  }
+});
+
+// The schema is the one document an author is told to read INSTEAD of the
+// source, so a `$ref` out of it points at a file they were told not to open.
+test('`vs schema` carries the closed enumerations an author must not guess', () => {
+  const printed = execFileSync('node', [CLI, 'schema'], { stdio: 'pipe' }).toString();
+  assert.ok(printed.length > 8192, 'the schema is larger than one pipe buffer: keep it that way');
+  const parsed = JSON.parse(printed);
+  assert.equal(parsed.$defs.driver.enum.length, 10);
+  assert.ok(!printed.includes('common.schema.json'));
+});

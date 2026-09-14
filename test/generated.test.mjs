@@ -51,8 +51,25 @@ test('the compiled validators carry no runtime dependency', () => {
 });
 
 test('what `vs schema` prints is the schema the validator was built from', () => {
+  const printed = JSON.parse(execFileSync('node', [join(root, 'bin', 'vs.mjs'), 'schema']).toString());
+  const common = JSON.parse(readFileSync(join(root, 'schemas', 'common.schema.json'), 'utf8'));
+  const expected = JSON.parse(readFileSync(join(root, 'schemas', 'value-case.schema.json'), 'utf8')
+    .replaceAll('common.schema.json#/$defs/', '#/$defs/'));
+  expected.$defs = common.$defs;
+  assert.deepEqual(printed, expected,
+    '`vs schema` must print the schema the validator is generated from, with the shared definitions resolved');
+});
+
+// SKILL.md sends an author to `vs schema` and the fixture and nothing else.
+// Anything they must not guess has to be reachable from that one command.
+test('`vs schema` is self-contained: nothing it prints points at a file the author was not told to read', () => {
   const printed = execFileSync('node', [join(root, 'bin', 'vs.mjs'), 'schema']).toString();
-  const onDisk = readFileSync(join(root, 'schemas', 'value-case.schema.json'), 'utf8');
-  assert.equal(printed, onDisk,
-    '`vs schema` must print the schema file the validator is generated from');
+  assert.ok(!printed.includes('common.schema.json'),
+    '`vs schema` must resolve its $refs, not send the author to another file');
+  const parsed = JSON.parse(printed);
+  const drivers = parsed.$defs?.driver?.enum;
+  assert.ok(Array.isArray(drivers) && drivers.length === 10,
+    'the closed driver enumeration must be visible in what `vs schema` prints');
+  assert.ok(parsed.$defs?.date?.pattern && parsed.$defs?.period?.pattern,
+    'the date and period patterns must be visible in what `vs schema` prints');
 });

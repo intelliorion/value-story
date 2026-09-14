@@ -6,7 +6,7 @@
   "engines": { "node": ">=22" },
   "bin": { "vs": "./bin/vs.mjs" },
   "scripts": {
-    "test": "node --test test/",
+    "test": "node --test test/*.test.mjs",
     "build:validators": "node scripts/generate-validators.mjs",
     "build:adapters": "node scripts/generate-adapters.mjs"
   },

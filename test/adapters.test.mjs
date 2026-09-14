@@ -27,10 +27,15 @@ test('copilot instructions carry the full contract', () => {
     'not a repair for a missing baseline',
     'did not read',
     'non-zero exit',
-    'vs help --json',
   ]) {
     assert.ok(copilot.includes(phrase), `missing: ${phrase}`);
   }
+  // Mode-agnostic: must show how to discover the CLI, in either the bare
+  // `vs` form or the `node bin/vs.mjs` form the contract body actually
+  // uses — so this still passes on the contract text alone, with no
+  // dependency on any wrapper sentence the generator adds around it.
+  assert.match(copilot, /(?:\bvs\b|node bin\/vs\.mjs) help --json/,
+    'missing: a way to discover the CLI via `help --json`');
 });
 
 test('the copilot prompt file declares its mode', () => {
@@ -50,5 +55,6 @@ test('README documents installation for both harnesses', () => {
   const readme = read('../README.md');
   assert.ok(readme.includes('.claude/skills'));
   assert.ok(readme.includes('.github/copilot-instructions.md'));
-  assert.ok(readme.includes('vs help --json'));
+  assert.match(readme, /(?:\bvs\b|node bin\/vs\.mjs) help --json/,
+    'missing: a way to discover the CLI via `help --json`');
 });

@@ -9,7 +9,8 @@ import { fileURLToPath } from 'node:url';
 const root = fileURLToPath(new URL('..', import.meta.url));
 const read = (p) => readFileSync(new URL(p, import.meta.url), 'utf8');
 
-const ADAPTERS = ['.github/copilot-instructions.md', '.github/prompts/value-story.prompt.md'];
+const ADAPTERS = ['.github/copilot-instructions.md', '.github/prompts/value-story.prompt.md',
+  '.claude/skills/value-story/SKILL.md'];
 
 // Regenerate into a scratch directory and compare, rather than regenerating
 // in place. Regenerating in place would catch staleness exactly once and

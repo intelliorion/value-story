@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "meta": { "title": "Incident Postmortem Assistant", "owner": "N. Vasquez", "period": "2026-05",
+            "quality_profile": "showcase", "motion": "entry" },
+  "initiative": { "id": "int-04", "name": "Incident Postmortem Assistant", "sponsor": "K. Lindqvist",
+                  "function": "Engineering", "status": "pilot" },
+  "drivers": { "primary": "standardization-knowledge",
+               "secondary": ["governance-oversight"] },
+  "arc": {
+    "problem": {
+      "headline": "Postmortems captured whatever the on-call engineer remembered to write",
+      "detail": "Format, depth and follow-through varied by author, so lessons from one incident rarely reached the team that hit the next similar one.",
+      "evidence_refs": ["e1"]
+    },
+    "capability": {
+      "headline": "Every postmortem now follows the same structure and links its own history",
+      "detail": "The assistant drafts a structured timeline from the incident channel and surfaces prior postmortems with a similar signature.",
+      "evidence_refs": ["e2"],
+      "novelty": "first-of-kind"
+    },
+    "outcome": {
+      "headline": "Institutional memory of incidents is now something the team can search",
+      "claim_refs": ["c1", "c2"]
+    },
+    "significance": {
+      "headline": "The team stops relearning the same lessons under pressure",
+      "detail": "New engineers can read the incident history for a system before they are paged for it, not after."
+    }
+  },
+  "claims": [
+    { "id": "c1", "driver": "standardization-knowledge", "tier": "qualitative",
+      "statement": "every postmortem now follows a common template with a searchable timeline and root-cause section",
+      "evidence_ref": "e2" },
+    { "id": "c2", "driver": "governance-oversight", "tier": "qualitative",
+      "statement": "reviewers can trace a current incident to prior postmortems with a similar signature without manual search",
+      "evidence_ref": "e3" }
+  ],
+  "evidence": [
+    { "ref": "e1", "kind": "interview", "title": "On-call retrospective session", "author": "SRE team",
+      "date": "2026-02-04", "locator": "notes" },
+    { "ref": "e2", "kind": "doc", "title": "Postmortem assistant design note", "author": "Eng",
+      "date": "2026-03-11", "locator": "page 1" },
+    { "ref": "e3", "kind": "interview", "title": "SRE lead feedback session", "author": "K. Lindqvist",
+      "date": "2026-05-20", "locator": "notes" }
+  ]
+}

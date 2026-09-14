@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "meta": { "title": "Invoice Match", "period": "2026-03" },
+  "initiative": { "id": "int-07", "name": "Invoice Match" },
+  "drivers": { "primary": "process-cost-efficiency" },
+  "arc": {
+    "problem": { "headline": "Invoices were matched to purchase orders by hand" },
+    "capability": { "headline": "Invoices match to purchase orders on receipt" },
+    "outcome": { "headline": "Matching stopped being a manual task", "claim_refs": ["c1"] },
+    "significance": { "headline": "Finance can close the month sooner" }
+  },
+  "claims": [
+    { "id": "c1", "driver": "process-cost-efficiency", "metric": "invoices matched manually",
+      "unit": "percent", "tier": "measured", "direction": "decrease",
+      "baseline": { "value": 100, "asof": "2026-01", "evidence_ref": "e1" },
+      "current":  { "value": 6,   "asof": "2026-03", "evidence_ref": "e1" } }
+  ],
+  "evidence": [
+    { "ref": "e1", "kind": "dataset", "title": "Match log", "date": "2026-03-31" }
+  ]
+}

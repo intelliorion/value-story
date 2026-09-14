@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "meta": { "title": "Cross-Jurisdictional Regulatory Filing Preparation and Reconciliation Program",
+            "owner": "Constance Abimbola Okonkwo-Whitfield", "period": "2026-04",
+            "quality_profile": "showcase", "motion": "entry" },
+  "initiative": { "id": "int-06",
+                  "name": "Cross-Jurisdictional Regulatory Filing Preparation and Reconciliation Program",
+                  "sponsor": "Bartholomew Featherstonehaugh-Nakamura",
+                  "function": "Compliance", "status": "live" },
+  "drivers": { "primary": "governance-oversight",
+               "secondary": ["standardization-knowledge"] },
+  "arc": {
+    "problem": {
+      "headline": "Filings were reconciled by hand against every jurisdiction's own template before a single number could be trusted",
+      "detail": "Analysts kept a private set of spreadsheets translating each regulator's terminology, so the definition of a single line item quietly drifted between the people who prepared filings and the people who reviewed them.",
+      "evidence_refs": ["e1"]
+    },
+    "capability": {
+      "headline": "One reconciliation model now speaks every regulator's terminology at once",
+      "detail": "The assistant maps each jurisdiction's line-item definitions onto a shared internal ledger, so preparers and reviewers work from the same underlying numbers regardless of which filing they are looking at.",
+      "evidence_refs": ["e2"],
+      "novelty": "first-of-kind"
+    },
+    "outcome": {
+      "headline": "Reconciliation discrepancies between jurisdictions stopped being discovered after submission",
+      "claim_refs": ["c1", "c2"]
+    },
+    "significance": {
+      "headline": "The firm can add a new reporting jurisdiction without rebuilding its reconciliation process from scratch",
+      "detail": "Adding a jurisdiction is now a matter of mapping its terminology onto the shared ledger, not building a parallel spreadsheet lineage that someone has to maintain forever."
+    }
+  },
+  "claims": [
+    { "id": "c1", "driver": "governance-oversight",
+      "metric": "cross-jurisdictional reconciliation discrepancies identified after regulatory submission",
+      "unit": "discrepancies per quarterly filing cycle", "tier": "measured", "direction": "decrease",
+      "baseline": { "value": 47, "asof": "2025-10", "evidence_ref": "e3" },
+      "current":  { "value": 3,  "asof": "2026-04", "evidence_ref": "e3" } },
+    { "id": "c2", "driver": "standardization-knowledge", "tier": "qualitative",
+      "statement": "preparers across every covered jurisdiction now reconcile against one shared internal ledger definition instead of jurisdiction-specific spreadsheet lineages maintained individually by whichever analyst happened to inherit them",
+      "evidence_ref": "e4" }
+  ],
+  "evidence": [
+    { "ref": "e1", "kind": "doc",
+      "title": "Regulatory Filing Reconciliation Process Review and Terminology Drift Assessment",
+      "author": "Compliance Operations", "date": "2025-10-30", "locator": "section 4, page 19" },
+    { "ref": "e2", "kind": "doc", "title": "Shared Ledger Reconciliation Model Design Note",
+      "author": "Eng", "date": "2025-12-05", "locator": "page 6" },
+    { "ref": "e3", "kind": "dataset", "title": "Post-Submission Discrepancy Register",
+      "author": "Compliance Operations", "date": "2026-04-30", "locator": "discrepancy_register_quarterly" },
+    { "ref": "e4", "kind": "interview", "title": "Cross-Jurisdictional Preparer Feedback Session",
+      "author": "Constance Abimbola Okonkwo-Whitfield", "date": "2026-04-18", "locator": "notes" }
+  ]
+}

@@ -1,0 +1,62 @@
+{
+  "schema_version": 1,
+  "meta": { "title": "Vendor Contract Review Assist", "owner": "L. Fenwick", "period": "2026-06",
+            "quality_profile": "showcase", "motion": "entry" },
+  "initiative": { "id": "int-03", "name": "Vendor Contract Review Assist", "sponsor": "P. Adeyemi",
+                  "function": "Legal", "status": "pilot" },
+  "drivers": { "primary": "high-value-skills-ip",
+               "secondary": ["process-cost-efficiency", "operational-adaptability"] },
+  "arc": {
+    "problem": {
+      "headline": "Every vendor contract needed a full attorney read",
+      "detail": "Standard clauses and unusual ones received the same scrutiny, so review queues grew regardless of contract complexity.",
+      "evidence_refs": ["e1"]
+    },
+    "capability": {
+      "headline": "Contracts arrive pre-flagged for what actually needs review",
+      "detail": "Standard-language sections are marked cleared; deviations are surfaced with the clause they diverge from.",
+      "evidence_refs": ["e2"],
+      "novelty": "incremental"
+    },
+    "outcome": {
+      "headline": "Attorneys spend their time on the clauses that are actually unusual",
+      "claim_refs": ["c1", "c2", "c3", "c4"]
+    },
+    "significance": {
+      "headline": "Contract volume can grow without a proportional hire plan",
+      "detail": "The team believes it can absorb next year's expected volume increase without adding headcount."
+    }
+  },
+  "claims": [
+    { "id": "c1", "driver": "process-cost-efficiency", "metric": "attorney review time per contract",
+      "unit": "hours", "tier": "measured", "direction": "decrease",
+      "baseline": { "value": 6.5, "asof": "2026-01", "evidence_ref": "e3" },
+      "current":  { "value": 2.1, "asof": "2026-06", "evidence_ref": "e3" } },
+    { "id": "c2", "driver": "high-value-skills-ip", "metric": "contracts reviewed per attorney",
+      "unit": "contracts/week", "tier": "estimated", "direction": "increase",
+      "baseline": { "value": 9, "asof": "2026-01" },
+      "current":  { "value": 22, "asof": "2026-06" },
+      "assumption": { "statement": "assumes the pilot cohort's contract mix is representative of the full docket",
+                      "owner": "P. Adeyemi" } },
+    { "id": "c3", "driver": "operational-adaptability", "metric": "contracts the team can absorb without new hires",
+      "unit": "contracts/quarter", "tier": "estimated", "direction": "increase",
+      "baseline": { "value": 400, "asof": "2026-01" },
+      "current":  { "value": 900, "asof": "2026-06" },
+      "assumption": { "statement": "assumes deviation-flagging accuracy holds as contract volume scales",
+                      "owner": "L. Fenwick" } },
+    { "id": "c4", "driver": "high-value-skills-ip", "metric": "clause deviations caught before signature",
+      "unit": "deviations/quarter", "tier": "estimated", "direction": "increase",
+      "baseline": { "value": 14, "asof": "2026-01" },
+      "current":  { "value": 38, "asof": "2026-06" },
+      "assumption": { "statement": "assumes flagged deviations that reached signature review were previously missed, not merely unrecorded",
+                      "owner": "T. Osei" } }
+  ],
+  "evidence": [
+    { "ref": "e1", "kind": "doc", "title": "Legal ops capacity review", "author": "Legal Ops",
+      "date": "2026-01-22", "locator": "page 4" },
+    { "ref": "e2", "kind": "doc", "title": "Clause-flagging design note", "author": "Eng",
+      "date": "2026-03-05", "locator": "page 2" },
+    { "ref": "e3", "kind": "dataset", "title": "Attorney time tracking export", "author": "Legal Ops",
+      "date": "2026-06-30", "locator": "time_tracking_q2" }
+  ]
+}

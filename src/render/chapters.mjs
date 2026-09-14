@@ -91,7 +91,7 @@ export const CHAPTERS_CSS = `
   background:linear-gradient(180deg,var(--vs-surface) 0%,var(--vs-bg) 100%)}
 .vs-chapter__claims{display:grid;gap:calc(var(--vs-unit)*2.5);
   grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));
-  align-items:stretch;margin-top:calc(var(--vs-unit)*6)}
+  align-items:start;margin-top:calc(var(--vs-unit)*6)}
 /* F2: the qualitative claim's statement is its whole content, so it takes two
    tracks once there is more than one track to take. */
 @media (min-width:900px){

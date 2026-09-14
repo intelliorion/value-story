@@ -1,0 +1,72 @@
+{
+  "schema_version": 1,
+  "meta": { "title": "Customer Message Routing", "owner": "A. Petrova", "period": "2026-08",
+            "quality_profile": "showcase", "motion": "entry" },
+  "initiative": { "id": "int-05", "name": "Customer Message Routing", "sponsor": "F. Njoroge",
+                  "function": "Customer Service", "status": "live" },
+  "drivers": { "primary": "operational-adaptability",
+               "secondary": ["productivity", "governance-oversight", "standardization-knowledge",
+                              "differentiation", "process-cost-efficiency", "overhead-cost-efficiency"] },
+  "arc": {
+    "problem": {
+      "headline": "Every inbound message waited in one undifferentiated queue",
+      "detail": "Billing questions, complaints and simple lookups all waited the same amount of time regardless of urgency or the agent skill they needed.",
+      "evidence_refs": ["e1"]
+    },
+    "capability": {
+      "headline": "Messages route to the right skill and priority the moment they arrive",
+      "detail": "Intent and urgency are inferred at intake and the message is placed in the queue built for it.",
+      "evidence_refs": ["e2"],
+      "novelty": "reusable"
+    },
+    "outcome": {
+      "headline": "Response times now match what each message actually needs",
+      "claim_refs": ["c1", "c2", "c3", "c4", "c5", "c6"]
+    },
+    "significance": {
+      "headline": "The queue now flexes with volume instead of breaking under it",
+      "detail": "A seasonal spike no longer means every customer waits longer; it means low-priority messages absorb the slack."
+    }
+  },
+  "claims": [
+    { "id": "c1", "driver": "operational-adaptability", "metric": "first response time",
+      "unit": "minutes", "tier": "measured", "direction": "decrease",
+      "baseline": { "value": 46, "asof": "2026-01", "evidence_ref": "e3" },
+      "current":  { "value": 12, "asof": "2026-08", "evidence_ref": "e3" } },
+    { "id": "c2", "driver": "productivity", "metric": "messages handled per agent",
+      "unit": "messages/shift", "tier": "measured", "direction": "increase",
+      "baseline": { "value": 54, "asof": "2026-01", "evidence_ref": "e4" },
+      "current":  { "value": 88, "asof": "2026-08", "evidence_ref": "e4" } },
+    { "id": "c3", "driver": "governance-oversight", "metric": "messages routed to the wrong skill",
+      "unit": "messages/week", "tier": "measured", "direction": "decrease",
+      "baseline": { "value": 310, "asof": "2026-01", "evidence_ref": "e5" },
+      "current":  { "value": 28,  "asof": "2026-08", "evidence_ref": "e5" } },
+    { "id": "c4", "driver": "standardization-knowledge", "tier": "qualitative",
+      "statement": "every queue now applies the same routing rules, replacing team-specific triage habits",
+      "evidence_ref": "e2" },
+    { "id": "c5", "driver": "differentiation", "metric": "customers reporting a same-day resolution",
+      "unit": "percent", "tier": "estimated", "direction": "increase",
+      "baseline": { "value": 38, "asof": "2026-01" },
+      "current":  { "value": 71, "asof": "2026-08" },
+      "assumption": { "statement": "assumes the post-contact survey respondents are representative of the full contact volume",
+                      "owner": "A. Petrova" } },
+    { "id": "c6", "driver": "overhead-cost-efficiency", "metric": "overflow contractor hours",
+      "unit": "hours/month", "tier": "measured", "direction": "decrease",
+      "baseline": { "value": 1200, "asof": "2026-01", "evidence_ref": "e6" },
+      "current":  { "value": 340,  "asof": "2026-08", "evidence_ref": "e6" } }
+  ],
+  "evidence": [
+    { "ref": "e1", "kind": "doc", "title": "Queue performance review", "author": "CS Analytics",
+      "date": "2026-01-08", "locator": "page 2" },
+    { "ref": "e2", "kind": "doc", "title": "Routing model design note", "author": "Eng",
+      "date": "2026-02-14", "locator": "page 1" },
+    { "ref": "e3", "kind": "dataset", "title": "Response time log", "author": "CS Analytics",
+      "date": "2026-08-31", "locator": "response_time_daily" },
+    { "ref": "e4", "kind": "dataset", "title": "Agent throughput log", "author": "CS Analytics",
+      "date": "2026-08-31", "locator": "throughput_daily" },
+    { "ref": "e5", "kind": "dataset", "title": "Routing exception log", "author": "Quality team",
+      "date": "2026-08-29", "locator": "routing_exceptions" },
+    { "ref": "e6", "kind": "dataset", "title": "Contractor overflow hours", "author": "Finance",
+      "date": "2026-08-31", "locator": "overflow_hours_monthly" }
+  ]
+}

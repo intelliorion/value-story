@@ -83,3 +83,41 @@ test('composed stylesheet has no hex color literals outside the :root token bloc
   assert.ok(!/#[0-9a-fA-F]{3,6}/.test(afterRoot),
     'no hex colors outside the :root token block');
 });
+
+// --- Fix 8: the outcome headline renders exactly once. ---
+
+function occurrences(haystack, needle) {
+  return haystack.split(needle).length - 1;
+}
+
+test('the outcome headline appears exactly once, in the hero', () => {
+  const html = renderCase(doc);
+  const headline = doc.arc.outcome.headline;
+  assert.equal(occurrences(html, headline), 1,
+    'the same sentence twice on one page is a visible rendering fault');
+  assert.ok(html.includes(`<h1 class="vs-hero__headline">${headline}</h1>`),
+    'the hero is the frame that must land first, so it carries the headline');
+});
+
+test('the outcome chapter keeps its eyebrow and its claim cards', () => {
+  const html = renderCase(doc);
+  const chapter = html.slice(html.indexOf('data-chapter="outcome"'));
+  const end = chapter.indexOf('</section>');
+  const outcome = chapter.slice(0, end);
+  assert.ok(outcome.includes('What outcome changed'), 'the eyebrow must survive');
+  assert.ok(outcome.includes('data-claim="c1"'), 'the claim cards must survive');
+  assert.ok(!outcome.includes(doc.arc.outcome.headline),
+    'the duplicate headline must be gone from the chapter');
+});
+
+test('the headline stays in the IR and still renders when there is no hero', () => {
+  // No measured or estimated claim referenced by the outcome means no hero,
+  // so the chapter must keep the headline rather than lose the sentence.
+  const noHero = structuredClone(doc);
+  noHero.arc.outcome.claim_refs = ['c2'];
+  const html = renderCase(noHero);
+  // vs-hero__headline also appears in the stylesheet, so look for the element.
+  assert.ok(!html.includes('<h1 class="vs-hero__headline">'), 'this document has no hero');
+  assert.equal(occurrences(html, noHero.arc.outcome.headline), 1,
+    'the outcome headline must still render exactly once');
+});

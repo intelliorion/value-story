@@ -1,6 +1,6 @@
 import { page, esc } from './html.mjs';
 import { tokensToCss } from './tokens.mjs';
-import { CLAIM_CARD_CSS } from './claim-card.mjs';
+import { CLAIM_CARD_CSS, normalizeTier } from './claim-card.mjs';
 import { heroDelta, HERO_CSS } from './delta.mjs';
 import { constellation, CONSTELLATION_CSS } from './constellation.mjs';
 import { chapters, CHAPTERS_CSS } from './chapters.mjs';
@@ -33,8 +33,11 @@ function evidenceList(evidence = []) {
 function pickHeroClaim(doc, claimsById) {
   const refs = doc?.arc?.outcome?.claim_refs || [];
   const referenced = refs.map((r) => claimsById.get(r)).filter(Boolean);
-  return referenced.find((c) => c.tier === 'measured')
-    || referenced.find((c) => c.tier === 'estimated')
+  // normalizeTier is the single authority on what a claim's tier IS; every
+  // other renderer routes through it, and comparing `c.tier` raw here would
+  // re-derive the same semantics in a second place.
+  return referenced.find((c) => normalizeTier(c) === 'measured')
+    || referenced.find((c) => normalizeTier(c) === 'estimated')
     || null;
 }
 
@@ -45,10 +48,12 @@ export function renderCase(doc) {
     tokensToCss(), BASE_CSS, HERO_CSS, CHAPTERS_CSS, CLAIM_CARD_CSS, CONSTELLATION_CSS,
   ].join('\n');
 
+  const heroHtml = heroDelta(hero, { headline: doc.arc?.outcome?.headline });
+
   const body = `<main>
 <p class="vs-meta">${esc(doc.initiative?.name)} &middot; ${esc(doc.meta?.period)}</p>
-${heroDelta(hero, { headline: doc.arc?.outcome?.headline })}
-${chapters(doc.arc, claimsById)}
+${heroHtml}
+${chapters(doc.arc, claimsById, { outcomeHeadlineInHero: heroHtml !== '' })}
 ${constellation(doc.drivers)}
 ${evidenceList(doc.evidence)}
 </main>`;

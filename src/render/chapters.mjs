@@ -10,7 +10,7 @@ const SLOT_EYEBROW = Object.freeze({
   significance: 'Why it matters to the firm',
 });
 
-function chapter(slot, node, claimsById) {
+function chapter(slot, node, claimsById, options) {
   if (!node) return '';
   const claims = slot === 'outcome'
     ? (node.claim_refs || []).map((r) => claimsById.get(r)).filter(Boolean).map(claimCard).join('\n')
@@ -18,16 +18,27 @@ function chapter(slot, node, claimsById) {
   const detail = slot === 'outcome' || !node.detail
     ? ''
     : `<p class="vs-chapter__detail">${esc(node.detail)}</p>`;
+  // The outcome headline is the frame that must land first, so the hero
+  // carries it. When the hero has already set it in the <h1>, the outcome
+  // chapter must not repeat it -- the same sentence twice on one page reads
+  // as a rendering fault. The eyebrow and the claim cards stay either way,
+  // and the headline stays in the IR: this suppresses a duplicate render,
+  // not the field. When there is no hero (no measured or estimated claim
+  // referenced by the outcome), the chapter keeps the headline, so the
+  // sentence is never lost.
+  const headline = slot === 'outcome' && options?.outcomeHeadlineInHero
+    ? ''
+    : `<h2 class="vs-chapter__headline">${esc(node.headline)}</h2>`;
   return `<section class="vs-chapter" data-chapter="${esc(slot)}">
 <p class="vs-chapter__eyebrow">${esc(SLOT_EYEBROW[slot])}</p>
-<h2 class="vs-chapter__headline">${esc(node.headline)}</h2>
+${headline}
 ${detail}
 ${claims ? `<div class="vs-chapter__claims">${claims}</div>` : ''}
 </section>`;
 }
 
-export function chapters(arc = {}, claimsById = new Map()) {
-  return ARC_SLOTS.map((slot) => chapter(slot, arc[slot], claimsById)).join('\n');
+export function chapters(arc = {}, claimsById = new Map(), options = {}) {
+  return ARC_SLOTS.map((slot) => chapter(slot, arc[slot], claimsById, options)).join('\n');
 }
 
 export const CHAPTERS_CSS = `

@@ -224,7 +224,11 @@ if (command === 'ingest') {
   }
 
   if (asJson) {
-    process.stdout.write(`${JSON.stringify({ schemaVersion: 1, ok: true, out: outDir, documents: rows, skipped }, null, 2)}\n`);
+    // `manifest` names the file just written above, additively -- a machine
+    // consumer previously had to join `out` with a hardcoded
+    // "evidence-manifest.json" to find it, which breaks silently if that
+    // convention ever changes. Every other field is unchanged.
+    process.stdout.write(`${JSON.stringify({ schemaVersion: 1, ok: true, out: outDir, manifest: manifestPathOut, documents: rows, skipped }, null, 2)}\n`);
   } else {
     for (const row of rows) {
       process.stdout.write(`${row.kind.padEnd(8)} ${row.sha256.slice(0, 12)} ${String(row.bytes).padStart(9)}B  ${row.path} -> ${row.textFile}\n`);

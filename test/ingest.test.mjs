@@ -895,7 +895,10 @@ test('stdout keeps exactly the shape it had before the manifest file existed', (
   write(src, 'logo.png', Buffer.from([0x89]));
 
   const report = JSON.parse(cli(['ingest', src, '--out', out, '--json']));
-  assert.deepEqual(Object.keys(report).sort(), ['documents', 'ok', 'out', 'schemaVersion', 'skipped']);
+  // `manifest` was added later (Task 19) to name the manifest file the run
+  // wrote, additively -- every field this test already knew about is still
+  // here, unrenamed and unremoved.
+  assert.deepEqual(Object.keys(report).sort(), ['documents', 'manifest', 'ok', 'out', 'schemaVersion', 'skipped']);
   assert.deepEqual(Object.keys(report.documents[0]).sort(),
     ['bytes', 'characters', 'kind', 'path', 'sha256', 'textFile', 'title', 'warnings']);
   assert.equal(report.skipped.length, 1);

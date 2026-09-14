@@ -80,8 +80,10 @@ Name a real person in `assumption.owner` — one the source actually names, neve
 - Preserve exact product names, metric names and units from the source.
 - Cite only sources you actually read.
 - If the sources do not support a chapter, say so plainly in your report rather than filling it with prose the evidence does not carry.
-- The tool traces numerals **only** inside claim cards and the hero. Every other numeral anywhere on the page — chapter headlines and details, evidence titles, the initiative name — is rendered exactly as you typed it and is never checked against anything.
-- A figure that matters therefore belongs in a `claim`, with a tier and evidence. A numeral written anywhere else carries no tier, no evidence and no check, and you alone are accountable for it.
+- Numerals are traced inside claim cards and the hero, and nowhere else.
+- `arc.outcome.headline` is traced **only when it reaches the hero** — which happens when `outcome` references a measured or estimated claim. With no such claim there is no hero, the headline falls back to its own chapter, and nothing checks it.
+- Never checked at all: the other chapter headlines and details, evidence titles, the initiative name.
+- So put no figure in any headline or in prose. A figure that matters belongs in a `claim`, with a tier and evidence.
 
 ## Repair
 

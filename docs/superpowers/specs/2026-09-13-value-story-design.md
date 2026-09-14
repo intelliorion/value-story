@@ -338,6 +338,10 @@ tier in scope — an `estimated` claim's points legitimately carry no citation
 could not be written to the destination given. Its `subject` names that
 destination. It must never be reported as an input fault.
 
+`motion/budget-exceeded` belongs to M3 with `layout/overflow` and
+`layout/collision`: §6.3 describes it in the present tense, but nothing emits
+it yet.
+
 `evidence/locator-missing` was removed: `locator` is optional in §4.4, so the
 code could never fire for its stated meaning. A schema failure on an evidence
 item now reports `schema/invalid` with the exact pointer, rather than asserting

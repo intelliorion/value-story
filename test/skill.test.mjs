@@ -40,15 +40,26 @@ test('requires reporting an unsourceable chapter instead of padding it', () => {
   assert.ok(SKILL.includes('rather than filling it with prose the evidence does not carry'));
 });
 
-test('states the numeral-tracing rule positively and completely', () => {
-  // Stated as a rule, not as a list of exceptions: an enumeration of
-  // untraced places is what made the earlier wording wrong -- it read as
-  // exhaustive while omitting evidence titles and the initiative name.
-  assert.ok(SKILL.includes('traces numerals **only** inside claim cards and the hero'));
-  assert.ok(SKILL.includes('Every other numeral anywhere on the page'));
-  assert.ok(SKILL.includes('is never checked'));
+test('states the numeral-tracing rule truthfully, including the conditional case', () => {
+  // Each phrase must live on ONE line of SKILL.md, so the assertion cannot
+  // be satisfied by text that happens to span a rewrap.
+  const lines = SKILL.split('\n');
+  const onOneLine = (phrase) => lines.some((l) => l.includes(phrase));
+
+  assert.ok(onOneLine('Numerals are traced inside claim cards and the hero, and nowhere else.'));
+  // arc.outcome.headline is rendered INTO the hero when the outcome
+  // references a measured or estimated claim, so its status is conditional:
+  // traced there, untraced when it falls back to its own chapter.
+  assert.ok(onOneLine('traced **only when it reaches the hero**'));
+  assert.ok(onOneLine('there is no hero, the headline falls back to its own chapter, and nothing checks it'));
+  assert.ok(onOneLine('Never checked at all: the other chapter headlines and details, evidence titles, the initiative name.'));
+  // The bullet ends on the instruction, not the mechanism.
+  assert.ok(onOneLine('So put no figure in any headline or in prose.'));
+
   assert.ok(!SKILL.includes('does not check numerals written into chapter prose'),
     'the old exception-enumerating wording must be gone');
+  assert.ok(!SKILL.includes('traces numerals **only** inside claim cards and the hero'),
+    'the wording that called the outcome headline unconditionally untraced must be gone');
 });
 
 test('states the stop condition and the exit-code rule', () => {

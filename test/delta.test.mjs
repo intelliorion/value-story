@@ -38,3 +38,40 @@ test('motion is honoured once and respects reduced-motion', () => {
 test('print path carries no animation', () => {
   assert.ok(HERO_CSS.includes('@media print'));
 });
+
+test('HERO_CSS contains no hex color literals', () => {
+  assert.ok(!/^[^@]*#[0-9a-fA-F]/m.test(HERO_CSS), 'no hex colors outside media queries');
+});
+
+test('HERO_CSS: measured tier references --vs-accent', () => {
+  assert.ok(HERO_CSS.includes('.vs-hero--measured'), 'has measured rule');
+  const measured = HERO_CSS.match(/\.vs-hero--measured[^}]*}/);
+  assert.ok(measured && measured[0].includes('--vs-accent'), 'measured rule must reference accent');
+});
+
+test('HERO_CSS: --vs-accent never appears in estimated tier rules', () => {
+  // Check that --vs-accent does not appear in .vs-hero--estimated or any descendant selector starting with it
+  const estimatedSection = HERO_CSS.match(/\.vs-hero--estimated[^}]*}[\s\S]*?(?=\.vs-hero|@media|$)/);
+  const relevantCss = estimatedSection ? estimatedSection[0] : '';
+  assert.ok(!relevantCss.includes('--vs-accent'), 'estimated rules must never reference accent');
+});
+
+test('bogus tier normalizes to qualitative and renders no hero', () => {
+  assert.equal(heroDelta({ ...claim, tier: 'bogus' }, { headline: 'x' }), '');
+});
+
+test('missing tier normalizes to qualitative and renders no hero', () => {
+  const claimNoTier = { ...claim };
+  delete claimNoTier.tier;
+  assert.equal(heroDelta(claimNoTier, { headline: 'x' }), '');
+});
+
+test('valid measured and estimated claims still render (regression)', () => {
+  const measuredHtml = heroDelta(claim, { headline: 'x' });
+  assert.ok(measuredHtml.length > 0, 'measured claim renders');
+  assert.ok(measuredHtml.includes('vs-hero--measured'), 'has measured class');
+
+  const estimatedHtml = heroDelta({ ...claim, tier: 'estimated' }, { headline: 'x' });
+  assert.ok(estimatedHtml.length > 0, 'estimated claim renders');
+  assert.ok(estimatedHtml.includes('vs-hero--estimated'), 'has estimated class');
+});

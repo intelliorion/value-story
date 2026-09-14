@@ -1,6 +1,6 @@
 import { esc } from './html.mjs';
 
-function normalizeTier(claim) {
+export function normalizeTier(claim) {
   if (claim?.tier === 'measured' || claim?.tier === 'estimated') {
     return claim.tier;
   }

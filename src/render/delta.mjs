@@ -1,11 +1,12 @@
 // src/render/delta.mjs
 import { esc } from './html.mjs';
-import { formatValue } from './claim-card.mjs';
+import { formatValue, normalizeTier } from './claim-card.mjs';
 
 export function heroDelta(claim, { headline } = {}) {
-  if (!claim || claim.tier === 'qualitative') return '';
+  if (!claim) return '';
+  const tier = normalizeTier(claim);
+  if (tier === 'qualitative') return '';
   if (claim.baseline?.value === undefined || claim.current?.value === undefined) return '';
-  const tier = claim.tier === 'measured' ? 'measured' : 'estimated';
   return `<section class="vs-hero vs-hero--${tier}">
 <p class="vs-hero__metric">${esc(claim.metric)}</p>
 <p class="vs-hero__figures">

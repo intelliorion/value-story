@@ -195,6 +195,34 @@ if (command === 'ingest') {
     warnings: d.warnings,
   }));
 
+  // The manifest FILE, written next to the extracted text.
+  //
+  // This is a different object from the run report on stdout, deliberately.
+  // Stdout says what HAPPENED -- including what was skipped and where each
+  // extraction landed. The manifest is the citation ledger, and answers only
+  // one question: what was READ. A skipped file was not read, so it is absent
+  // here while staying visible on stdout; letting it into the ledger would
+  // make a document citable that nobody ever opened, which is the single
+  // failure `src/manifest.mjs` exists to prevent.
+  //
+  // `ingested_at` is a REAL timestamp, taken once for the run. The source
+  // file's mtime was the reproducible alternative and was rejected: mtime is
+  // when a document was last WRITTEN, and putting that in a field named for
+  // when it was READ is a plausible-but-wrong value of exactly the kind this
+  // pipeline refuses everywhere else. The manifest is a per-run output, not a
+  // committed generated file, so losing byte-identical reruns costs nothing.
+  const ingestedAt = new Date().toISOString();
+  const manifestPathOut = join(outDir, 'evidence-manifest.json');
+  try {
+    writeFileSync(manifestPathOut, `${JSON.stringify({
+      schema_version: 1,
+      documents: rows.map((row) => ({ ...row, ingested_at: ingestedAt })),
+    }, null, 2)}\n`, 'utf8');
+  } catch (error) {
+    process.stderr.write(`could not write the evidence manifest to ${manifestPathOut}: ${error.message}\n`);
+    process.exit(1);
+  }
+
   if (asJson) {
     process.stdout.write(`${JSON.stringify({ schemaVersion: 1, ok: true, out: outDir, documents: rows, skipped }, null, 2)}\n`);
   } else {

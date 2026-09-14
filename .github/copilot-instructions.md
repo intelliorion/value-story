@@ -16,20 +16,26 @@ a particular agent harness.
 
 ## What leadership asks
 
-Actively look for claims answering all five questions. Two are easy to miss
-because the numbers do not sit on the surface of a status report:
+Hunt for claims answering all five. **Risk and reach are the two that get missed**: cost and time figures sit on the surface of a status report, control-exception counts and headcount reach do not. Look for those two specifically. Report which of the five you could not answer — never quietly answer three and present it as five.
 
 1. How much productivity? → `productivity`, `operational-adaptability`
-2. How much risk reduced? → `governance-oversight`, `standardization-knowledge`
-   (control exceptions, error rates, audit findings, with `direction: decrease`)
+2. How much risk reduced? → `governance-oversight`, `standardization-knowledge` — control exceptions, error rates, audit findings, `direction: decrease`
 3. What new capabilities? → `capability.novelty` plus `qualitative` claims
 4. How much cost avoided? → the four Efficiency drivers
-5. How many employees or functions enabled? → headcount or function counts,
-   with `unit` of people or functions
+5. How many employees or functions enabled? → headcount or function counts, `unit` of people or functions
 
-No schema change is needed for any of these: `metric` and `unit` are free
-strings, so each is an ordinary claim. If the sources do not support one, say
-so rather than invent it.
+`metric` and `unit` are free strings, so each of these is an ordinary claim. If the sources do not support one, say so rather than invent it.
+
+## Reading the sources
+
+```bash
+node bin/vs.mjs ingest <sources> --out <dir> --json
+```
+
+Extracts readable text into `<dir>`, one file per document, plus
+`<dir>/evidence-manifest.json` — the record of what was read. Read that text
+before authoring anything. A skipped file is absent from the manifest because
+it was never read; do not cite it.
 
 ## Fast authoring path
 
@@ -42,16 +48,13 @@ so rather than invent it.
    - `capability` — What capability did AI unlock?
    - `outcome` — What outcome changed? References claims only.
    - `significance` — Why does it matter to the firm?
-4. Validate after every edit:
+4. Validate after every edit, and deliver once as final acceptance. Always
+   pass the manifest: without it no citation is checked, and the receipt says
+   so.
 
    ```bash
-   node bin/vs.mjs validate <candidate.json> --json
-   ```
-
-5. Deliver once, as final acceptance:
-
-   ```bash
-   node bin/vs.mjs deliver <candidate.json> <output.html> --json
+   node bin/vs.mjs validate <case.json> --manifest <dir>/evidence-manifest.json --json
+   node bin/vs.mjs deliver  <case.json> <out.html> --manifest <dir>/evidence-manifest.json --json
    ```
 
 Do not read `src/`, `test/`, or `DESIGN.md` before the first candidate. Inspect
@@ -68,7 +71,15 @@ supports, never the tier you wish it supported.
 | `estimated` | a number is inferred or asserted, not measured | `assumption.statement` and `assumption.owner` |
 | `qualitative` | a capability changed with no number | `statement`; no numeric fields |
 
+**The test: could someone re-run the query and get the same number?** If yes, `measured`. If no, `estimated`.
+
+`measured` requires the cited source to REPORT the figure as an observation — a dataset, a metered reading, a counted extract, a query with an answer behind it. A figure stated in a deck, a status update, a proposal or an email with nothing behind it is `estimated`, and it needs a named owner. When neither holds it is `qualitative`, or it is not a claim at all.
+
 Name a real person in `assumption.owner` — one the source actually names, never an invented plausible-sounding one. If nobody will own the estimate, it is not an estimate — make it qualitative.
+
+## Reading a portfolio record
+
+Most source records are early-stage: a rubric score, an assumed rating, an unquantified benefit. A line like *"no reach evidence stated; assumed departmental, the portfolio norm"* is itself evidence — evidence of an ASSUMPTION, not of an outcome. A rubric score is a prioritisation judgement, never a business result, and must never become a `measured` claim. Promoting "efficiency 4" to a measured figure fabricates a business result out of a routing decision.
 
 ## Authoring invariants
 
@@ -80,6 +91,7 @@ Name a real person in `assumption.owner` — one the source actually names, neve
 - Preserve exact product names, metric names and units from the source.
 - Cite only sources you actually read.
 - If the sources do not support a chapter, say so plainly in your report rather than filling it with prose the evidence does not carry.
+- An outcome chapter carrying only `qualitative` claims is a **correct outcome, not a failure**. Say so in the headline. Naming the gap precisely is more useful to leadership than a manufactured number, and the tool rejects the manufactured number anyway.
 - Numerals are traced inside claim cards and the hero, and nowhere else.
 - `arc.outcome.headline` is traced **only when it reaches the hero** — which happens when `outcome` references a measured or estimated claim. With no such claim there is no hero, the headline falls back to its own chapter, and nothing checks it.
 - Never checked at all: the other chapter headlines and details, evidence titles, the initiative name.

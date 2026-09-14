@@ -8,10 +8,12 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { ingestFile, ingestDir, outputName } from '../src/ingest/ingest.mjs';
+import { readManifest } from '../src/manifest.mjs';
 import { externalText, findBinary, DEFAULT_TOOLS } from '../src/ingest/external.mjs';
 import { docxFixture, pptxFixture } from './helpers/zip.mjs';
 
 const CLI = fileURLToPath(new URL('../bin/vs.mjs', import.meta.url));
+const FIXTURE = fileURLToPath(new URL('../fixtures/example.value-case.json', import.meta.url));
 
 const scratch = [];
 function tmp() {
@@ -396,14 +398,16 @@ test('vs ingest writes one .txt per document and prints manifest rows', () => {
   write(src, 'deck.pptx', pptxFixture());
 
   const stdout = cli(['ingest', src, '--out', out]);
+  // The extracted text, plus the manifest file that records what was read.
   const files = readdirSync(out).sort();
-  assert.equal(files.length, 2);
-  for (const f of files) assert.ok(f.endsWith('.txt'));
+  const texts = files.filter((f) => f.endsWith('.txt'));
+  assert.deepEqual(files.filter((f) => !f.endsWith('.txt')), ['evidence-manifest.json']);
+  assert.equal(texts.length, 2);
   assert.match(stdout, /notes\.txt/);
   assert.match(stdout, /deck\.pptx/);
-  const texts = files.map((f) => readFileSync(join(out, f), 'utf8')).join('\n');
-  assert.match(texts, /Cycle time fell to 9 days\./);
-  assert.match(texts, /Slide 10: Headline 10/);
+  const bodies = texts.map((f) => readFileSync(join(out, f), 'utf8')).join('\n');
+  assert.match(bodies, /Cycle time fell to 9 days\./);
+  assert.match(bodies, /Slide 10: Headline 10/);
 });
 
 test('vs ingest --json prints a single parseable object on stdout', () => {
@@ -789,4 +793,176 @@ test('an unsupported transfer encoding is announced, not absorbed', () => {
   ].join('\n'));
   const doc = ingestFile(write(dir, 'uu.eml', eml));
   assert.ok(doc.warnings.some((w) => /uuencode/.test(w)), `expected a transfer-encoding warning, got ${JSON.stringify(doc.warnings)}`);
+});
+
+// ---------------------------------------------------------------------------
+// The manifest FILE.
+//
+// `vs ingest` prints a run report on stdout and writes a manifest file into
+// --out. They are different things: the run report says what happened
+// (including what was SKIPPED and where the text landed); the manifest is the
+// citation ledger, and records only what was actually READ.
+//
+// Until this existed there was no way to get from `vs ingest` to
+// `vs validate --manifest` without hand-editing JSON, so nothing had ever
+// exercised the M2 pipeline end to end and the seam stayed hidden.
+// ---------------------------------------------------------------------------
+
+test('vs ingest writes evidence-manifest.json into --out', () => {
+  const src = tmp();
+  const out = join(tmp(), 'out');
+  write(src, 'notes.txt', 'Cycle time fell to 9 days.\n');
+
+  cli(['ingest', src, '--out', out]);
+  const path = join(out, 'evidence-manifest.json');
+  assert.ok(existsSync(path), 'expected a manifest file in the output directory');
+  const manifest = JSON.parse(readFileSync(path, 'utf8'));
+  assert.equal(manifest.schema_version, 1);
+  assert.equal(manifest.documents.length, 1);
+  assert.equal(manifest.documents[0].title, 'notes');
+});
+
+test('the manifest file is a manifest, not the stdout run report', () => {
+  const src = tmp();
+  const out = join(tmp(), 'out');
+  write(src, 'notes.txt', 'body');
+  cli(['ingest', src, '--out', out, '--json']);
+
+  const manifest = JSON.parse(readFileSync(join(out, 'evidence-manifest.json'), 'utf8'));
+  assert.deepEqual(Object.keys(manifest).sort(), ['documents', 'schema_version']);
+  // The run report's siblings belong to the run, not to the record of reading.
+  for (const key of ['ok', 'out', 'skipped', 'schemaVersion']) {
+    assert.ok(!(key in manifest), `manifest must not carry the run report's ${key}`);
+  }
+});
+
+test('the manifest file satisfies the evidence-manifest schema', () => {
+  const src = tmp();
+  const out = join(tmp(), 'out');
+  write(src, 'notes.txt', 'body');
+  write(src, 'timings.csv', 'week,hours\n1,72\n');
+  cli(['ingest', src, '--out', out]);
+
+  // readManifest is the real consumer: it parses AND schema-checks, and throws
+  // a diagnostic error on anything the validator would refuse.
+  const manifest = readManifest(join(out, 'evidence-manifest.json'));
+  assert.equal(manifest.documents.length, 2);
+  for (const row of manifest.documents) {
+    for (const field of ['path', 'title', 'kind', 'sha256', 'bytes', 'ingested_at']) {
+      assert.ok(row[field] !== undefined, `manifest row is missing ${field}`);
+    }
+  }
+});
+
+test('ingested_at is an ISO 8601 UTC instant that parses as a real date', () => {
+  const src = tmp();
+  const out = join(tmp(), 'out');
+  write(src, 'notes.txt', 'body');
+  const before = Date.now();
+  cli(['ingest', src, '--out', out]);
+  const after = Date.now();
+
+  const { ingested_at: stamp } = JSON.parse(readFileSync(join(out, 'evidence-manifest.json'), 'utf8')).documents[0];
+  assert.match(stamp, /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$/);
+  const parsed = Date.parse(stamp);
+  assert.ok(Number.isFinite(parsed), `${stamp} did not parse as a date`);
+  // A real reading time, not a file mtime: it falls inside this run.
+  assert.ok(parsed >= before - 1000 && parsed <= after + 1000,
+    `${stamp} is not the time the document was read`);
+});
+
+test('a SKIPPED file is absent from the manifest but still visible on stdout', () => {
+  const src = tmp();
+  const out = join(tmp(), 'out');
+  write(src, 'good.txt', 'good');
+  write(src, 'logo.png', Buffer.from([0x89]));
+
+  const stdout = cli(['ingest', src, '--out', out]);
+  // The manifest records what was READ. A skipped file was not read.
+  const manifest = JSON.parse(readFileSync(join(out, 'evidence-manifest.json'), 'utf8'));
+  assert.equal(manifest.documents.length, 1);
+  assert.equal(manifest.documents[0].title, 'good');
+  assert.ok(!JSON.stringify(manifest).includes('logo.png'),
+    'a skipped file must never enter the citation ledger');
+  // But the shortfall must stay visible.
+  assert.match(stdout, /logo\.png/);
+});
+
+test('stdout keeps exactly the shape it had before the manifest file existed', () => {
+  const src = tmp();
+  const out = join(tmp(), 'out');
+  write(src, 'notes.txt', 'body');
+  write(src, 'logo.png', Buffer.from([0x89]));
+
+  const report = JSON.parse(cli(['ingest', src, '--out', out, '--json']));
+  assert.deepEqual(Object.keys(report).sort(), ['documents', 'ok', 'out', 'schemaVersion', 'skipped']);
+  assert.deepEqual(Object.keys(report.documents[0]).sort(),
+    ['bytes', 'characters', 'kind', 'path', 'sha256', 'textFile', 'title', 'warnings']);
+  assert.equal(report.skipped.length, 1);
+});
+
+test('the manifest file does not collide with an extracted text file', () => {
+  const src = tmp();
+  const out = join(tmp(), 'out');
+  // A source literally named evidence-manifest must not overwrite the ledger:
+  // every extracted file is <stem>-<hash>.txt, so it cannot.
+  write(src, 'evidence-manifest.json', '{}');
+  write(src, 'evidence-manifest.txt', 'decoy');
+  cli(['ingest', src, '--out', out]);
+  const manifest = readManifest(join(out, 'evidence-manifest.json'));
+  assert.equal(manifest.documents.length, 1);
+  assert.equal(manifest.documents[0].title, 'evidence manifest');
+});
+
+// ---------------------------------------------------------------------------
+// The round trip: documents in, verified citations out.
+//
+// This is the first test to exercise the whole M2 pipeline in one piece --
+// ingest, author, validate against the manifest that ingest itself produced.
+// ---------------------------------------------------------------------------
+
+/** A corpus whose derived titles are exactly what the case below cites. */
+function corpus(dir) {
+  write(dir, 'operations review.txt', 'Intake took three days before anyone looked at it.\n');
+  write(dir, 'triage design note.txt', 'Cases classify themselves on arrival.\n');
+  write(dir, 'triage timings.csv', 'month,hours\n2026-01,72\n2026-08,9\n');
+  write(dir, 'reviewer feedback.txt', 'Every routing decision carries a rationale trail.\n');
+  return dir;
+}
+
+test('round trip: ingest a corpus, author a case citing it, validate against the manifest', () => {
+  const src = corpus(tmp());
+  const out = join(tmp(), 'out');
+  cli(['ingest', src, '--out', out, '--json']);
+
+  const doc = JSON.parse(readFileSync(FIXTURE, 'utf8'));
+  // The fixture's four evidence entries, retitled to the four real documents.
+  const titles = ['operations review', 'triage design note', 'triage timings', 'reviewer feedback'];
+  doc.evidence.forEach((e, i) => { e.title = titles[i]; });
+  const casePath = join(tmp(), 'case.json');
+  writeFileSync(casePath, JSON.stringify(doc), 'utf8');
+
+  const result = JSON.parse(cli(['validate', casePath, '--manifest', join(out, 'evidence-manifest.json'), '--json']));
+  assert.equal(result.ok, true, JSON.stringify(result.diagnostics, null, 2));
+  assert.equal(result.citationsVerified, true);
+});
+
+test('round trip: altering one cited title fires evidence/not-in-manifest', () => {
+  const src = corpus(tmp());
+  const out = join(tmp(), 'out');
+  cli(['ingest', src, '--out', out, '--json']);
+
+  const doc = JSON.parse(readFileSync(FIXTURE, 'utf8'));
+  const titles = ['operations review', 'triage design note', 'Triage Timings Q3', 'reviewer feedback'];
+  doc.evidence.forEach((e, i) => { e.title = titles[i]; });
+  const casePath = join(tmp(), 'case.json');
+  writeFileSync(casePath, JSON.stringify(doc), 'utf8');
+
+  const stderr = cliFailure(['validate', casePath, '--manifest', join(out, 'evidence-manifest.json'), '--json']);
+  const result = JSON.parse(stderr);
+  const dangling = result.diagnostics.filter((d) => d.code === 'evidence/not-in-manifest');
+  assert.equal(dangling.length, 1);
+  assert.equal(dangling[0].subject.title, 'Triage Timings Q3');
+  // A near miss is a candidate to choose from, never an automatic match.
+  assert.ok(dangling[0].evidence.candidates.includes('triage timings'));
 });

@@ -76,3 +76,41 @@ test('the contract body is delimited for adapter generation', () => {
   assert.ok(SKILL.includes('<!-- contract:start -->'));
   assert.ok(SKILL.includes('<!-- contract:end -->'));
 });
+
+// ---------------------------------------------------------------------------
+// Extraction guidance (M2).
+//
+// Every phrase below must live on ONE line of SKILL.md. A soft-wrapped
+// sentence satisfies `SKILL.includes` while reading as two fragments, which is
+// how an earlier round of this file passed with prose that had been split.
+// ---------------------------------------------------------------------------
+
+const LINES = SKILL.split('\n');
+const onOneLine = (phrase) => LINES.some((l) => l.includes(phrase));
+
+test('documents the ingest flow with commands that actually exist', () => {
+  assert.ok(onOneLine('node bin/vs.mjs ingest <sources> --out <dir> --json'));
+  assert.ok(onOneLine('node bin/vs.mjs validate <case.json> --manifest <dir>/evidence-manifest.json --json'));
+  assert.ok(onOneLine('node bin/vs.mjs deliver  <case.json> <out.html> --manifest <dir>/evidence-manifest.json --json'));
+});
+
+test('gives a usable test for the measured/estimated boundary, not just a definition', () => {
+  // The whole of M2 turns on this one decision.
+  assert.ok(onOneLine('could someone re-run the query and get the same number?'));
+  assert.ok(onOneLine('a deck, a status update, a proposal or an email with nothing behind it is `estimated`'));
+});
+
+test('names risk and reach as the two leadership questions that get missed', () => {
+  assert.ok(onOneLine('Risk and reach are the two that get missed'));
+  assert.ok(onOneLine('Report which of the five you could not answer'));
+});
+
+test('refuses to let a rubric score become a measured claim', () => {
+  assert.ok(onOneLine('evidence of an ASSUMPTION, not of an outcome'));
+  assert.ok(onOneLine('A rubric score is a prioritisation judgement, never a business result'));
+});
+
+test('states that an all-qualitative outcome is a correct outcome', () => {
+  assert.ok(onOneLine('correct outcome, not a failure'));
+  assert.ok(onOneLine('the tool rejects the manufactured number anyway'));
+});

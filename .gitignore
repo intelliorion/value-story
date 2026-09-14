@@ -1,4 +1,6 @@
-node_modules/
 .DS_Store
+.review-tmp/
+.superpowers/
 *.log
+node_modules/
 out/

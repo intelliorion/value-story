@@ -195,3 +195,209 @@ test('visual-check is listed in vs help', () => {
   const help = JSON.parse(stdout);
   assert.ok(help.commands.some((c) => c.name === 'visual-check'));
 });
+
+// --- Task 21: contrast, collision, above-the-fold -------------------------
+// Each check gets its OWN synthetic pass fixture and fail fixture. None of
+// them is a project artifact: a gate whose unit tests are pinned to the
+// current design cannot report on the current design.
+
+const SMALL = [{ width: 1440, height: 900 }];
+const write = (name, html) => {
+  const p = join(dir, name);
+  writeFileSync(p, html, 'utf8');
+  return p;
+};
+
+// CONTRAST -----------------------------------------------------------------
+// #5A616B on #0A0B0D is 3.15:1 — below 4.5 for normal text, above 3 for
+// large. Both fixtures use it, so the pass/fail difference is the WCAG
+// large-text rule itself and nothing else.
+const CONTRAST_PASS = write('contrast-pass.html', `<!doctype html><meta charset="utf-8"><title>contrast pass</title>
+<style>*{margin:0;padding:0}body{background:#0A0B0D;color:#F4F5F7;font:16px/1.5 system-ui}
+p{margin:0 0 24px}
+.band{background:linear-gradient(180deg,#14161A 0%,#0A0B0D 100%);padding:24px}
+.large{font-size:24px;color:#5A616B}
+.boldish{font-size:18.66px;font-weight:700;color:#5A616B}
+</style>
+<p class="body">Body text at the page ground.</p>
+<div class="band"><p class="over-band">Text sitting on the gradient band.</p></div>
+<p class="large">Large text at exactly 24px</p>
+<p class="boldish">Bold text at exactly 18.66px</p>
+<div class="empty"></div>`);
+
+const CONTRAST_FAIL = write('contrast-fail.html', `<!doctype html><meta charset="utf-8"><title>contrast fail</title>
+<style>*{margin:0;padding:0}body{background:#0A0B0D;color:#F4F5F7;font:16px/1.5 system-ui}
+p{margin:0 0 24px}
+.dim{color:#5A616B}
+.band{background:linear-gradient(180deg,#F4F5F7 0%,#FFFFFF 100%);padding:24px}
+.small-bold{font-size:18.5px;font-weight:700;color:#5A616B}
+</style>
+<p class="dim">Dim body text at 16px.</p>
+<div class="band"><p class="on-band">Light text on a light band.</p></div>
+<p class="small-bold">Bold but under 18.66px</p>
+<div class="empty"></div>`);
+
+test('contrast: a page whose text clears the WCAG thresholds produces no finding', async () => {
+  const result = await visualCheck(CONTRAST_PASS, { browser: shared, viewports: SMALL });
+  const contrast = result.findings.filter((f) => f.code === 'visual/low-contrast');
+  assert.deepEqual(contrast, [], `unexpected contrast findings: ${JSON.stringify(contrast, null, 2)}`);
+});
+
+test('contrast: normal text below 4.5:1 is a finding naming both colours and the ratio', async () => {
+  const result = await visualCheck(CONTRAST_FAIL, { browser: shared, viewports: SMALL });
+  const contrast = result.findings.filter((f) => f.code === 'visual/low-contrast');
+  assert.ok(contrast.length > 0, 'expected a contrast finding');
+
+  const dim = contrast.find((f) => /\.dim/.test(f.subject.selector));
+  assert.ok(dim, `no finding for .dim: ${JSON.stringify(contrast.map((f) => f.subject.selector))}`);
+  assert.equal(dim.severity, 'error');
+  assert.equal(dim.evidence.threshold, 4.5);
+  assert.ok(Math.abs(dim.evidence.ratio - 3.15) < 0.02, `ratio was ${dim.evidence.ratio}`);
+  assert.match(dim.evidence.color, /90|5a616b/i);
+  assert.match(dim.evidence.background, /10|0a0b0d/i);
+  assert.match(dim.message, /3\.1/);
+});
+
+test('contrast: the 18.66px bold boundary is the real WCAG rule, not a rounded one', async () => {
+  const pass = await visualCheck(CONTRAST_PASS, { browser: shared, viewports: SMALL });
+  assert.equal(
+    pass.findings.filter((f) => f.code === 'visual/low-contrast' && /boldish/.test(f.subject.selector)).length,
+    0,
+    '18.66px bold is large text and 3.15:1 clears the 3:1 threshold',
+  );
+  const fail = await visualCheck(CONTRAST_FAIL, { browser: shared, viewports: SMALL });
+  const small = fail.findings.find((f) => f.code === 'visual/low-contrast' && /small-bold/.test(f.subject.selector));
+  assert.ok(small, '18.5px bold is NOT large text and 3.15:1 fails the 4.5:1 threshold');
+  assert.equal(small.evidence.threshold, 4.5);
+});
+
+test('contrast: the background is resolved by walking ancestors, not assumed to be body', async () => {
+  const result = await visualCheck(CONTRAST_FAIL, { browser: shared, viewports: SMALL });
+  const onBand = result.findings.find((f) => f.code === 'visual/low-contrast' && /on-band/.test(f.subject.selector));
+  // Against body (#0A0B0D) this text is 18:1 and would never be reported.
+  // It is only a finding because the effective background is the band.
+  assert.ok(onBand, 'text over a light band must be measured against the band');
+  assert.equal(onBand.evidence.backgroundKind, 'gradient');
+  assert.ok(onBand.evidence.ratio < 1.3, `ratio was ${onBand.evidence.ratio}`);
+  assert.match(onBand.evidence.backgroundSelector, /band/);
+});
+
+test('contrast: an element with no rendered text is never a finding', async () => {
+  const result = await visualCheck(CONTRAST_FAIL, { browser: shared, viewports: SMALL });
+  const empty = result.findings.filter((f) => /\.empty/.test(f.subject.selector || ''));
+  assert.deepEqual(empty, [], 'an empty div has no contrast problem');
+});
+
+// COLLISION ----------------------------------------------------------------
+const COLLIDE_PASS = write('collide-pass.html', `<!doctype html><meta charset="utf-8"><title>collide pass</title>
+<style>*{margin:0;padding:0}body{background:#0A0B0D;color:#F4F5F7;font:16px/1.5 system-ui}
+.card{padding:16px;margin-bottom:24px}
+.wrapped{width:220px;margin-bottom:24px}
+.near-a{position:absolute;left:0;top:600px;width:100px}
+.near-b{position:absolute;left:98px;top:600px;width:100px}
+</style>
+<div class="card">Parent card text that sits around its child.
+  <p class="inner">A nested paragraph whose box is entirely inside its parent.</p>
+</div>
+<p class="wrapped"><span class="one">alpha bravo charlie delta echo</span> <span class="two">foxtrot golf hotel india</span></p>
+<p class="after">A paragraph after everything else.</p>
+<div class="near-a">left</div><div class="near-b">right</div>`);
+
+const COLLIDE_FAIL = write('collide-fail.html', `<!doctype html><meta charset="utf-8"><title>collide fail</title>
+<style>*{margin:0;padding:0}body{background:#0A0B0D;color:#F4F5F7;font:16px/1.5 system-ui}
+#alpha{position:absolute;left:40px;top:40px;width:300px;height:100px}
+#bravo{position:absolute;left:100px;top:80px;width:300px;height:100px}
+</style>
+<div id="alpha">Alpha label</div><div id="bravo">Bravo label</div>`);
+
+test('collision: a parent containing a text-bearing child is NOT a collision', async () => {
+  const result = await visualCheck(COLLIDE_PASS, { browser: shared, viewports: SMALL });
+  const hits = result.findings.filter((f) => f.code === 'visual/text-collision');
+  assert.deepEqual(hits, [], `ancestor/descendant pairs must be excluded: ${JSON.stringify(hits, null, 2)}`);
+});
+
+test('collision: two overlapping text boxes are a finding with both selectors and the rectangle', async () => {
+  const result = await visualCheck(COLLIDE_FAIL, { browser: shared, viewports: SMALL });
+  const hits = result.findings.filter((f) => f.code === 'visual/text-collision');
+  assert.equal(hits.length, 1, `expected exactly one collision: ${JSON.stringify(hits, null, 2)}`);
+  const [hit] = hits;
+  const both = `${hit.evidence.a} ${hit.evidence.b}`;
+  assert.match(both, /#alpha/);
+  assert.match(both, /#bravo/);
+  assert.equal(hit.evidence.overlap.width, 240);
+  assert.equal(hit.evidence.overlap.height, 60);
+  assert.equal(hit.severity, 'error');
+  assert.ok(hit.supportedFixes.length > 0);
+});
+
+// ABOVE THE FOLD -----------------------------------------------------------
+const HERO = '<p class="vs-hero__figures"><span>41%</span> &rarr; <span>12%</span></p>';
+const FOLD_PASS = write('fold-pass.html', `<!doctype html><meta charset="utf-8"><title>fold pass</title>
+<style>*{margin:0;padding:0}body{background:#0A0B0D;color:#F4F5F7;font:16px/1.5 system-ui}
+.vs-hero__figures{font-size:64px;padding:40px}.rest{height:2400px}</style>
+${HERO}<div class="rest"></div>`);
+
+const FOLD_FAIL = write('fold-fail.html', `<!doctype html><meta charset="utf-8"><title>fold fail</title>
+<style>*{margin:0;padding:0}body{background:#0A0B0D;color:#F4F5F7;font:16px/1.5 system-ui}
+.push{height:1200px}.vs-hero__figures{font-size:64px}</style>
+<div class="push"></div>${HERO}`);
+
+const FOLD_NONE = write('fold-none.html', `<!doctype html><meta charset="utf-8"><title>no hero</title>
+<style>*{margin:0;padding:0}body{background:#0A0B0D;color:#F4F5F7;font:16px/1.5 system-ui}</style>
+<h1>An outcome carried entirely by qualitative claims.</h1>
+<p>There is no hero delta on this page, and that is correct.</p>`);
+
+test('above the fold: a hero inside the first screen produces no finding', async () => {
+  const result = await visualCheck(FOLD_PASS, { browser: shared });
+  const hits = result.findings.filter((f) => f.code === 'visual/hero-below-fold');
+  assert.deepEqual(hits, [], JSON.stringify(result.findings, null, 2));
+});
+
+test('above the fold: a hero pushed past the first screen is a finding, once, at the smallest viewport', async () => {
+  const result = await visualCheck(FOLD_FAIL, { browser: shared });
+  const hits = result.findings.filter((f) => f.code === 'visual/hero-below-fold');
+  assert.equal(hits.length, 1, 'the fold is checked at the smallest viewport only');
+  assert.equal(hits[0].subject.viewport, '1440x900');
+  assert.ok(hits[0].evidence.bottom > 900, `bottom was ${hits[0].evidence.bottom}`);
+  assert.equal(hits[0].evidence.viewportHeight, 900);
+  assert.match(hits[0].message, /900/);
+});
+
+test('above the fold: no hero is SKIPPED with a reason, never a failure', async () => {
+  const result = await visualCheck(FOLD_NONE, { browser: shared });
+  assert.equal(result.ok, true, JSON.stringify(result.findings, null, 2));
+  const smallest = result.viewports[0];
+  assert.equal(smallest.hero.present, false);
+  assert.match(smallest.hero.reason, /no .*hero|not present/i);
+});
+
+test('the three new checks share the one browser the gate already launched', async () => {
+  // A single visualCheck call over three viewports opens three contexts on the
+  // SAME browser; it never launches one per check.
+  const result = await visualCheck(CONTRAST_PASS, { browser: shared });
+  assert.equal(result.viewports.length, 3);
+  assert.equal(shared.contexts().length, 0, 'every context is closed again');
+});
+
+test('collision: the parent/child exclusion is what suppresses it, not the geometry', async () => {
+  // The same two boxes at the same coordinates, once nested and once as
+  // siblings. If the nested case were silent because the boxes happen not to
+  // overlap, the sibling case would be silent too and the exclusion above
+  // would be proving nothing.
+  const geometry = `<style>*{margin:0;padding:0}body{background:#0A0B0D;color:#F4F5F7;font:16px/1.5 system-ui}
+#outer{position:absolute;left:0;top:0;width:400px;height:200px}
+#inner{position:absolute;left:20px;top:20px;width:300px;height:100px}</style>`;
+  const nested = write('contain-nested.html', `<!doctype html><meta charset="utf-8"><title>nested</title>
+${geometry}<div id="outer">Outer text<div id="inner">Inner text</div></div>`);
+  const siblings = write('contain-siblings.html', `<!doctype html><meta charset="utf-8"><title>siblings</title>
+${geometry}<div id="outer">Outer text</div><div id="inner">Inner text</div>`);
+
+  const a = await visualCheck(nested, { browser: shared, viewports: SMALL });
+  assert.deepEqual(a.findings.filter((f) => f.code === 'visual/text-collision'), [],
+    'a descendant inside its ancestor is never a collision');
+
+  const b = await visualCheck(siblings, { browser: shared, viewports: SMALL });
+  const hits = b.findings.filter((f) => f.code === 'visual/text-collision');
+  assert.equal(hits.length, 1, 'the identical geometry, un-nested, IS a collision');
+  assert.equal(hits[0].evidence.overlap.width, 300);
+});

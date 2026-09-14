@@ -101,7 +101,7 @@ A **non-zero exit** can never be described as success.
 - **Demoting the primary driver** to escape `driver/primary-no-claim` is not a
   repair.
 - Never author an `evidence` entry for a document you **did not read**.
-- Rewording a qualitative claim to remove a flagged numeral, instead of **promoting it to `measured` or `estimated` with cited evidence**, is not a repair for `render/figure-untraced` — it hides the same unsourced number under different words.
+- Removing or rewording a numeral to make **any** diagnostic pass is not a repair. If the figure is real, promote the claim to `measured` or `estimated` and cite evidence; if it is not real, remove the claim and say so. Rewording hides the same unsourced number under different words.
 
 Each of these passes validation by destroying the credibility the artifact
 exists to establish.

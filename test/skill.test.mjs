@@ -28,7 +28,8 @@ test('names every prohibited repair', () => {
 });
 
 test('closes the reword-the-numeral loophole', () => {
-  assert.ok(SKILL.includes('not a repair for `render/figure-untraced`'));
+  assert.ok(SKILL.includes('make **any** diagnostic pass is not a repair'));
+  assert.ok(SKILL.includes('hides the same unsourced number under different words'));
 });
 
 test('requires the assumption owner to come from the source', () => {

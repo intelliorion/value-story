@@ -244,11 +244,63 @@ function authoredCase() {
   };
 }
 
-// The rubric scores in the portfolio record -- these must NEVER appear as
-// authorised figures on any claim in the authored case. This is the trap
-// the corpus exists to set (see SKILL.md, "Reading a portfolio record").
-// (Strategic fit 4, Reach 2, Feasibility 4, Risk 3, Evidence quality 2.)
-const RUBRIC_SCORES = ['4', '2', '3'];
+// ---------------------------------------------------------------------------
+// THE RUBRIC-FABRICATION TRAP.
+//
+// The rubric scores in the portfolio record must NEVER appear as authorised
+// figures on any claim (see SKILL.md, "Reading a portfolio record"): a
+// prioritisation judgement is not a business result.
+//
+// Both sides of that assertion are DERIVED, deliberately. An earlier version
+// compared two sets of hand-written literals -- ['4','2','3'] against
+// ['9','5','12','18'] -- which no change anywhere under src/ could ever make
+// fail. The scores below are parsed out of the corpus document as `vs ingest`
+// extracted it; the authorised figures come from the authored case through
+// `claimFigures`, the same function the renderer and the figure-tracing
+// reconciler use to decide what a claim actually puts on the page.
+// ---------------------------------------------------------------------------
+
+/** Every score in the portfolio record's "Rubric scores" section, as rendered. */
+function rubricScoresFrom(text) {
+  const section = text.split(/^##[ \t]+/m).find((part) => part.startsWith('Rubric scores'));
+  assert.ok(section, 'the portfolio record must still carry a "Rubric scores" section');
+  const scores = new Set();
+  for (const line of section.split('\n')) {
+    const match = line.match(/^-\s+[^:]+:\s*(\d+)\s*$/);
+    if (match) scores.add(match[1]);
+  }
+  return scores;
+}
+
+/** Every measured figure in metrics.csv, as the dataset reports it. */
+function datasetFiguresFrom(csv) {
+  const [header, ...rows] = csv.trim().split(/\r?\n/);
+  const columns = header.split(',');
+  const baseline = columns.indexOf('baseline_value');
+  const current = columns.indexOf('current_value');
+  assert.ok(baseline >= 0 && current >= 0, 'metrics.csv must still carry baseline/current columns');
+  const figures = new Set();
+  for (const row of rows) {
+    const cells = row.split(',');
+    figures.add(cells[baseline]);
+    figures.add(cells[current]);
+  }
+  return figures;
+}
+
+/** The figures a case actually authorises onto the page, via the renderer's own function. */
+const authorisedFigures = (doc) => new Set(doc.claims.flatMap(claimFigures));
+
+/**
+ * THE ASSERTION ITSELF, factored out so the negative control below can prove
+ * it is capable of failing.
+ */
+function assertNoRubricScoreIsAuthorised(doc, rubric) {
+  const authorised = authorisedFigures(doc);
+  const fabricated = [...authorised].filter((figure) => rubric.has(figure));
+  assert.deepEqual(fabricated, [],
+    `these authorised claim figures are rubric scores from the portfolio record: ${JSON.stringify(fabricated)}`);
+}
 
 // ---------------------------------------------------------------------------
 // tests
@@ -370,14 +422,58 @@ test('altering ONE evidence title fires exactly one evidence/not-in-manifest, of
 });
 
 test('the rubric scores in the portfolio record are never authorised as claim figures -- the trap the corpus sets', () => {
-  const doc = authoredCase();
-  const authorised = new Set(doc.claims.flatMap(claimFigures));
-  for (const score of RUBRIC_SCORES) {
-    assert.ok(!authorised.has(score),
-      `rubric score ${JSON.stringify(score)} from the portfolio record must never appear as an authorised claim figure`);
+  const dir = buildCorpus();
+  const { documents } = ingestDir(dir);
+  const byTitle = new Map(documents.map((d) => [d.title, d]));
+
+  // Derived from the corpus document, not written down here.
+  const rubric = rubricScoresFrom(byTitle.get(TITLES.portfolio).text);
+  assert.ok(rubric.size >= 3, `expected several rubric scores, got ${JSON.stringify([...rubric])}`);
+
+  assertNoRubricScoreIsAuthorised(authoredCase(), rubric);
+
+  // Positive control, also derived: the figures metrics.csv actually reports
+  // ARE authorised, so the assertion above is not vacuously true because the
+  // case happens to authorise nothing at all.
+  const dataset = datasetFiguresFrom(byTitle.get(TITLES.metrics).text);
+  assert.ok(dataset.size >= 4, `expected several dataset figures, got ${JSON.stringify([...dataset])}`);
+  const authorised = authorisedFigures(authoredCase());
+  for (const figure of dataset) {
+    assert.ok(authorised.has(figure),
+      `measured figure ${JSON.stringify(figure)} from metrics.csv should be authorised by a claim`);
   }
-  // Positive control: the actually-measured figures from metrics.csv ARE
-  // authorised, so the assertion above is testing something real and not
-  // vacuously true because no figures exist at all.
-  assert.ok(authorised.has('9') && authorised.has('5') && authorised.has('12') && authorised.has('18'));
+  // And the two sets are genuinely disjoint, so a pass is not an accident of
+  // one set being empty.
+  assert.deepEqual([...dataset].filter((f) => rubric.has(f)), []);
+});
+
+test('the rubric trap FIRES: a claim planted on a rubric score fails the same assertion', () => {
+  const dir = buildCorpus();
+  const { documents } = ingestDir(dir);
+  const byTitle = new Map(documents.map((d) => [d.title, d]));
+  const rubric = rubricScoresFrom(byTitle.get(TITLES.portfolio).text);
+
+  // The fabrication this corpus exists to catch, written out in full: the
+  // portfolio committee's "Strategic fit: 4" promoted to a measured business
+  // result, cited to the portfolio record itself.
+  const score = [...rubric].sort()[0];
+  const fabricated = authoredCase();
+  fabricated.claims.push({
+    id: 'c9',
+    driver: 'governance-oversight',
+    tier: 'measured',
+    metric: 'strategic fit',
+    unit: 'rubric points',
+    direction: 'increase',
+    baseline: { value: 1, asof: '2026-01', evidence_ref: 'e5' },
+    current: { value: Number(score), asof: '2026-08', evidence_ref: 'e5' },
+  });
+
+  assert.ok(authorisedFigures(fabricated).has(score),
+    'the planted claim must actually authorise the rubric score, or this control proves nothing');
+  assert.throws(
+    () => assertNoRubricScoreIsAuthorised(fabricated, rubric),
+    (error) => error instanceof assert.AssertionError && String(error.message).includes(score),
+    'the rubric assertion must be capable of failing on a claim built from a rubric score',
+  );
 });

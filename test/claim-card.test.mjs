@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { claimCard, claimFigures, formatValue } from '../src/render/claim-card.mjs';
+import { claimCard, claimFigures, formatValue, CLAIM_CARD_CSS } from '../src/render/claim-card.mjs';
 
 const measured = {
   id: 'c1', driver: 'labor-cost-efficiency', metric: 'case turnaround time',
@@ -64,4 +64,65 @@ test('claim content is escaped', () => {
   const html = claimCard({ ...qualitative, statement: '<img onerror=x>' });
   assert.ok(!html.includes('<img'));
   assert.ok(html.includes('&lt;img'));
+});
+
+test('formatValue handles null without fabricating zero', () => {
+  assert.equal(formatValue(null), '');
+  assert.equal(formatValue(undefined), '');
+  assert.equal(formatValue(0), '0');
+  assert.equal(formatValue(NaN), '');
+});
+
+test('formatValue handles very large values without precision loss', () => {
+  // toFixed avoids overflow on values past MAX_SAFE_INTEGER
+  assert.equal(formatValue(999999999999.99), '999,999,999,999.99');
+  assert.equal(formatValue(1234567890.12), '1,234,567,890.12');
+  assert.equal(formatValue(1000000), '1,000,000');
+});
+
+test('qualitative claim with baseline and current renders no numerals', () => {
+  const malformed = {
+    id: 'c4', tier: 'qualitative',
+    statement: 'this claim is malformed with numbers',
+    baseline: { value: 100 },
+    current: { value: 200 },
+  };
+  const html = claimCard(malformed);
+  assert.ok(html.includes('vs-claim--qualitative'));
+  assert.equal(/\d/.test(html.replace(/data-[a-z]+="[^"]*"/g, '')), false,
+    'qualitative cards must contain no digits even when baseline/current exist');
+  assert.deepEqual(claimFigures(malformed), [],
+    'claimFigures must return empty for qualitative even with baseline/current');
+});
+
+test('CLAIM_CARD_CSS contains no hex color literals', () => {
+  const hexPattern = /#[0-9a-fA-F]{3,6}/;
+  assert.equal(hexPattern.test(CLAIM_CARD_CSS), false,
+    'CSS must not contain hex color literals like #fff or #123456');
+});
+
+test('CLAIM_CARD_CSS: measured tier references --vs-accent', () => {
+  const measuredAccentPattern = /\.vs-claim--measured[^}]*--vs-accent/;
+  assert.ok(measuredAccentPattern.test(CLAIM_CARD_CSS),
+    'measured tier must reference --vs-accent for visual confidence');
+});
+
+test('CLAIM_CARD_CSS: estimated tier never references --vs-accent', () => {
+  const estimatedBlock = CLAIM_CARD_CSS.match(/\.vs-claim--estimated[^}]*\}/);
+  assert.ok(estimatedBlock, 'estimated tier rule must exist');
+  assert.ok(!estimatedBlock[0].includes('--vs-accent'),
+    'estimated tier must never use --vs-accent');
+});
+
+test('bogus tier normalizes to qualitative', () => {
+  const bogus = {
+    id: 'c5', tier: 'bogus',
+    statement: 'unknown tier becomes qualitative',
+    baseline: { value: 5 },
+    current: { value: 6 },
+  };
+  const html = claimCard(bogus);
+  assert.ok(html.includes('vs-claim--qualitative'));
+  assert.equal(/\d/.test(html.replace(/data-[a-z]+="[^"]*"/g, '')), false);
+  assert.deepEqual(claimFigures(bogus), []);
 });

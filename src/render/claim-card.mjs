@@ -1,16 +1,26 @@
 import { esc } from './html.mjs';
 
+function normalizeTier(claim) {
+  if (claim?.tier === 'measured' || claim?.tier === 'estimated') {
+    return claim.tier;
+  }
+  return 'qualitative';
+}
+
 export function formatValue(value) {
+  // Handle null explicitly: Number(null) === 0, which would fabricate a measurement
+  if (value === null || value === undefined) return '';
   const n = Number(value);
   if (!Number.isFinite(n)) return '';
-  const rounded = Math.round(n * 100) / 100;
+  // Use toFixed to avoid overflow on very large values past MAX_SAFE_INTEGER
+  const rounded = Number(n.toFixed(2));
   const [int, frac] = String(rounded).split('.');
   const grouped = int.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
   return frac ? `${grouped}.${frac}` : grouped;
 }
 
 export function claimFigures(claim) {
-  if (!claim || claim.tier === 'qualitative') return [];
+  if (!claim || normalizeTier(claim) === 'qualitative') return [];
   const out = [];
   if (claim.baseline && claim.baseline.value !== undefined) out.push(formatValue(claim.baseline.value));
   if (claim.current && claim.current.value !== undefined) out.push(formatValue(claim.current.value));
@@ -30,8 +40,7 @@ function deltaRow(claim) {
 }
 
 export function claimCard(claim) {
-  const tier = claim?.tier === 'measured' || claim?.tier === 'estimated'
-    ? claim.tier : 'qualitative';
+  const tier = normalizeTier(claim);
   const evidence = claim?.baseline?.evidence_ref || claim?.evidence_ref || '';
   const attrs = [
     `class="vs-claim vs-claim--${tier}"`,

@@ -114,3 +114,40 @@ test('states that an all-qualitative outcome is a correct outcome', () => {
   assert.ok(onOneLine('correct outcome, not a failure'));
   assert.ok(onOneLine('the tool rejects the manufactured number anyway'));
 });
+
+// ---------------------------------------------------------------------------
+// The delivery contract (M3). The gate is only useful if the file that tells an
+// agent how to use it also tells it which passes are counterfeit.
+// ---------------------------------------------------------------------------
+
+test('keeps the three claims apart, naming what each command proves', () => {
+  assert.ok(onOneLine('`deliver` proves the deterministic artifact checks.'));
+  assert.ok(onOneLine('`visual-check` proves bounded behaviour in a real browser.'));
+  assert.ok(SKILL.includes('whether the artifact is any good remains a **human judgment**'));
+  assert.ok(SKILL.includes('the tool never claims it'));
+});
+
+test('names the counterfeit passes explicitly', () => {
+  for (const phrase of [
+    'no `overflow:hidden`',
+    'no clipped content',
+    'no internal scroller',
+    'no reduced typography',
+  ]) {
+    assert.ok(SKILL.includes(phrase), `missing counterfeit: ${phrase}`);
+  }
+  // The same argument the reword-the-numeral prohibition already makes.
+  assert.ok(SKILL.includes('makes the measurement pass while making the artifact worse'));
+});
+
+test('documents the gate command and its graduated repair bands', () => {
+  assert.ok(onOneLine('node bin/vs.mjs visual-check <out.html> --json'));
+  assert.ok(SKILL.includes('do not remove content'));
+  assert.ok(SKILL.includes('do not shrink the hero numeral'));
+  assert.ok(SKILL.includes('report it rather than compressing'));
+});
+
+test('sends a contrast repair to the token file, not to the element', () => {
+  assert.ok(SKILL.includes('src/render/tokens.mjs'));
+  assert.ok(SKILL.includes('not a per-element override'));
+});

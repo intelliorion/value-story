@@ -324,7 +324,8 @@ evidence/ref-unresolved     evidence/duplicate-ref      evidence/not-in-manifest
 evidence/manifest-stale
 render/figure-untraced      render/region-nested
 motion/budget-exceeded
-layout/overflow             layout/collision
+layout/overflow             layout/collision            layout/contrast
+layout/hero-below-fold
 ```
 
 `claim/measured-no-evidence` enforces invariant 4 of §4.6 and the `measured`
@@ -364,9 +365,12 @@ A malformed or schema-invalid manifest reports `schema/invalid` with
 `subject.manifest` naming the manifest file, rather than a code of its own: the
 fault is exactly what `schema/invalid` already means.
 
-`motion/budget-exceeded` belongs to M3 with `layout/overflow` and
-`layout/collision`: §6.3 describes it in the present tense, but nothing emits
-it yet.
+The four `layout/` codes are LIVE: `vs visual-check` emits them from the
+standard §5 envelope, with `subject` carrying the offending selector and the
+viewport it was measured at, and graduated `supportedFixes` (§6.5).
+
+`motion/budget-exceeded` is the one code still unemitted: §6.3 describes it in
+the present tense, but nothing emits it yet.
 
 `evidence/locator-missing` was removed: `locator` is optional in §4.4, so the
 code could never fire for its stated meaning. A schema failure on an evidence
@@ -512,9 +516,18 @@ Failures return graduated fixes that state what not to do, after
 `op7418/guizang-ppt-skill`:
 
 ```
-40px over   → tighten one gap or padding by 20-40px; do not remove content
-200px over  → move a supporting card to the second chapter; do not shrink the hero numeral
+<=40px over    → tighten one gap or padding by 20-40px; do not remove content
+41-200px over  → move a supporting element to the next chapter; do not shrink the hero numeral
+over 200px     → the layout is wrong for this content: report it rather than compressing it
 ```
+
+Contrast repairs name `src/render/tokens.mjs`: the palette is centralised, so
+the fix is a token change and not a per-element override.
+
+Contrast and collision findings are capped per viewport. The cap is deliberate,
+but the CAPPED count must never read as the whole count: every truncated
+payload carries `total` alongside `truncated`, and the human-readable report
+states reported against measured — "15 of 36", never a bare "15".
 
 Counterfeit passes are prohibited by name: no `overflow: hidden`, no clipped
 content, no internal scroller, no reduced typography.

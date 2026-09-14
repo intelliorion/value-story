@@ -20,6 +20,8 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
+import { normalizedDiagnostic } from '../src/diagnostics.mjs';
+
 /** Spec §6.5. Three desk-class sizes, widest last. */
 export const VIEWPORTS = Object.freeze([
   Object.freeze({ width: 1440, height: 900 }),
@@ -87,25 +89,44 @@ async function settle(page) {
   }, SETTLE_MS);
 }
 
-function graduatedFixes(overflowPx, selector) {
-  if (overflowPx <= 80) {
-    return [
-      `tighten one gap or padding on ${selector} by 20-40px; do not remove content`,
-      NEVER,
-    ];
+/**
+ * Spec §6.5. The band is keyed on the MEASURED pixels, because the right
+ * repair for 20px over and the right repair for 400px over are not the same
+ * action at different intensities — they are different actions, and the
+ * strongest one is "stop and report".
+ *
+ * Each band names what NOT to do. A repair instruction that only says what to
+ * try invites an agent to delete content until the number goes down, which is
+ * how a gate gets satisfied by destroying the thing it was protecting.
+ */
+function overflowRepair(overflowPx, selector, label) {
+  if (overflowPx <= 40) {
+    return {
+      band: '<=40px',
+      fixes: [
+        `tighten one gap or padding on ${selector} by 20-40px; do not remove content`,
+        NEVER,
+      ],
+    };
   }
-  if (overflowPx < 200) {
-    return [
-      `reduce the column count or the fixed width of ${selector}, or let it wrap; do not remove content`,
-      'if it is a table or a chart, shorten the longest label rather than the container',
-      NEVER,
-    ];
+  if (overflowPx <= 200) {
+    return {
+      band: '41-200px',
+      fixes: [
+        `move a supporting element to the next chapter: take one card out of the row ${selector} sits in; do not shrink the hero numeral`,
+        `${overflowPx}px is one element too many for this row, not a padding error — do not squeeze every element to absorb it`,
+        NEVER,
+      ],
+    };
   }
-  return [
-    'move a supporting card out of this row and into the second chapter; do not shrink the hero numeral',
-    `${selector} is over by ${overflowPx}px — that is a layout decision, not a padding tweak`,
-    NEVER,
-  ];
+  return {
+    band: '>200px',
+    fixes: [
+      `${selector} is ${overflowPx}px past the ${label} window: the layout is wrong for this content, and the honest action is to report it rather than compressing it`,
+      'do not scale, condense or crop the page to bring the number down; a layout that only fits after compression is a worse artifact reported as a better one',
+      NEVER,
+    ],
+  };
 }
 
 const CONTRAST_NEVER = 'do not lower the threshold, exempt the element, or drop the text to a '
@@ -114,6 +135,8 @@ const CONTRAST_NEVER = 'do not lower the threshold, exempt the element, or drop 
 function contrastFixes(failure) {
   const shortfall = Math.round((failure.threshold - failure.ratio) * 100) / 100;
   const fixes = [
+    'the palette is centralised in src/render/tokens.mjs: change the token this element resolves to, '
+      + 'not a per-element override — an override patches one instance of a palette defect and leaves the defect',
     `lift ${failure.selector} off ${failure.color} toward a lighter step of the same token ramp, `
       + `or darken ${failure.background}; it needs ${shortfall} more of ratio to reach ${failure.threshold}:1`,
   ];
@@ -129,23 +152,58 @@ function contrastFixes(failure) {
   return fixes;
 }
 
-function collisionFixes(pair) {
-  return [
-    `separate ${pair.a} and ${pair.b}: give the row ${pair.overlap.height + 8}px more vertical room, `
-      + 'or let the longer label wrap instead of running into its neighbour',
-    'if one of them is a chart label, move the label outside the mark rather than over it',
-    'do not add overflow:hidden, z-index, or a background swatch to cover the overlap — '
-      + 'those hide the collision instead of resolving it',
-  ];
+const COLLISION_NEVER = 'do not add overflow:hidden, z-index, or a background swatch to cover the '
+  + 'overlap — those hide the collision instead of resolving it';
+
+/** Graduated on the overlap itself: a graze is a spacing bug, a large overlap is a layout bug. */
+function collisionRepair(pair) {
+  const area = pair.overlap.width * pair.overlap.height;
+  if (area <= 600) {
+    return {
+      band: 'graze',
+      fixes: [
+        `separate ${pair.a} and ${pair.b}: give the row ${pair.overlap.height + 8}px more vertical room, `
+          + 'or let the longer label wrap instead of running into its neighbour',
+        'if one of them is a chart label, move the label outside the mark rather than over it',
+        COLLISION_NEVER,
+      ],
+    };
+  }
+  return {
+    band: 'overlap',
+    fixes: [
+      `${pair.a} and ${pair.b} are competing for the same ${pair.overlap.width}x${pair.overlap.height}px of the page: `
+        + 'move one of them onto its own row, or into the next chapter',
+      'do not shrink either label to make them fit — a collision resolved by making the text unreadable is not resolved',
+      COLLISION_NEVER,
+    ],
+  };
 }
 
-function foldFixes(hero) {
-  return [
-    `raise ${hero.selector} by ${hero.bottom - hero.innerHeight}px: tighten the chapter padding above it, `
-      + 'or move a meta row below the hero',
-    'do not shrink the hero numeral and do not clip the band — the delta is the one thing the reader '
-      + 'must see before scrolling, and a smaller one that fits is a worse artifact reported as a better one',
-  ];
+const FOLD_NEVER = 'do not shrink the hero numeral and do not clip the band — the delta is the one thing '
+  + 'the reader must see before scrolling, and a smaller one that fits is a worse artifact reported as a better one';
+
+/** Graduated on the overshoot: a near miss is padding, a long push is a chapter in the wrong place. */
+function foldRepair(hero) {
+  const overshoot = hero.bottom - hero.innerHeight;
+  if (overshoot <= 120) {
+    return {
+      band: '<=120px',
+      fixes: [
+        `raise ${hero.selector} by ${overshoot}px: tighten the chapter padding above it by 20-40px, `
+          + 'or move a meta row below the hero',
+        FOLD_NEVER,
+      ],
+    };
+  }
+  return {
+    band: '>120px',
+    fixes: [
+      `${overshoot}px of material stands between the top of the page and ${hero.selector}: move the block above `
+        + 'it below the hero rather than compressing the gap — this is a chapter in the wrong order, not a padding error',
+      FOLD_NEVER,
+    ],
+  };
 }
 
 /**
@@ -608,13 +666,20 @@ function measure(opts) {
     scrollHeight: root.scrollHeight,
     offenders: offenders.slice(0, 3),
     textElements: textNodes.length,
+    // The cap is deliberate; reporting the CAPPED count as though it were the
+    // whole count is not. `total` travels with every truncated payload so a
+    // consumer reading the array alone cannot mistake five for all there is.
     contrast: {
       failures: contrastFailures.slice(0, maxReported),
+      reported: Math.min(contrastFailures.length, maxReported),
+      total: contrastFailures.length,
       truncated: Math.max(0, contrastFailures.length - maxReported),
       skipped: contrastSkipped,
     },
     collisions: {
       pairs: collisions.slice(0, maxReported),
+      reported: Math.min(collisions.length, maxReported),
+      total: collisions.length,
       truncated: Math.max(0, collisions.length - maxReported),
     },
     hero,
@@ -640,7 +705,9 @@ function clean(message) {
  *   a caller checking several artifacts pays for one launch, not N.
  * @param {() => Promise<any>} [options.loadPlaywright]  seam for tests.
  * @returns {Promise<{ok: boolean, path: string, sha256: string,
- *   viewports: object[], findings: object[]}>}
+ *   viewports: object[], findings: object[],
+ *   summary: {reported: number, total: number, truncated: number, cap: number,
+ *     byCode: Array<{code: string, reported: number, total: number, truncated: number}>}}>}
  */
 export async function visualCheck(htmlPath, options = {}) {
   const {
@@ -679,6 +746,16 @@ export async function visualCheck(htmlPath, options = {}) {
 
   const measurements = [];
   const findings = [];
+  // code -> { reported, total }. `total` is what was MEASURED; `reported` is
+  // what survived the per-viewport cap. The gap between them is the whole
+  // point of this tally.
+  const tally = new Map();
+  const count = (code, reported, total) => {
+    const row = tally.get(code) || { reported: 0, total: 0 };
+    row.reported += reported;
+    row.total += total;
+    tally.set(code, row);
+  };
   const url = pathToFileURL(path).href;
 
   try {
@@ -698,42 +775,72 @@ export async function visualCheck(htmlPath, options = {}) {
         const label = `${viewport.width}x${viewport.height}`;
         measurements.push({ viewport: label, ...m });
 
+        // Carried into EVERY finding of a capped family, so a reader who sees
+        // one finding still sees how many there were.
+        const disclosure = (payload) => ({
+          reported: payload.reported,
+          total: payload.total,
+          truncated: payload.truncated,
+        });
+
         // --- contrast ---------------------------------------------------
+        count('layout/contrast', m.contrast.reported, m.contrast.total);
         for (const failure of m.contrast.failures) {
-          findings.push({
-            code: 'visual/low-contrast',
+          findings.push(normalizedDiagnostic({
+            code: 'layout/contrast',
             severity: 'error',
             message: `At ${label} the text of ${failure.selector} is ${failure.ratio}:1 against its `
               + `background, below the ${failure.threshold}:1 WCAG 2.1 threshold for `
               + `${failure.largeText ? 'large' : 'normal'} text `
               + `(${failure.fontSizePx}px, weight ${failure.fontWeight}). `
               + `Text ${failure.color} on ${failure.background}, resolved from `
-              + `${failure.backgroundSelector}${failure.backgroundKind === 'gradient' ? ' (a gradient, sampled under this element’s own box)' : ''}.`,
+              + `${failure.backgroundSelector}${failure.backgroundKind === 'gradient' ? ' (a gradient, sampled under this element’s own box)' : ''}.`
+              + (m.contrast.truncated > 0
+                ? ` ${m.contrast.reported} of ${m.contrast.total} contrast failures are reported at this viewport.`
+                : ''),
             subject: { viewport: label, selector: failure.selector },
-            evidence: { viewportWidth: viewport.width, viewportHeight: viewport.height, ...failure },
+            evidence: {
+              viewportWidth: viewport.width,
+              viewportHeight: viewport.height,
+              ...failure,
+              ...disclosure(m.contrast),
+            },
             supportedFixes: contrastFixes(failure),
-          });
+          }));
         }
 
         // --- collision --------------------------------------------------
+        count('layout/collision', m.collisions.reported, m.collisions.total);
         for (const pair of m.collisions.pairs) {
-          findings.push({
-            code: 'visual/text-collision',
+          const repair = collisionRepair(pair);
+          findings.push(normalizedDiagnostic({
+            code: 'layout/collision',
             severity: 'error',
             message: `At ${label} the text of ${pair.a} overlaps the text of ${pair.b} by `
-              + `${pair.overlap.width}x${pair.overlap.height}px at (${pair.overlap.x}, ${pair.overlap.y}).`,
+              + `${pair.overlap.width}x${pair.overlap.height}px at (${pair.overlap.x}, ${pair.overlap.y}).`
+              + (m.collisions.truncated > 0
+                ? ` ${m.collisions.reported} of ${m.collisions.total} collisions are reported at this viewport.`
+                : ''),
             subject: { viewport: label, selector: pair.a },
-            evidence: { viewportWidth: viewport.width, viewportHeight: viewport.height, ...pair },
-            supportedFixes: collisionFixes(pair),
-          });
+            evidence: {
+              viewportWidth: viewport.width,
+              viewportHeight: viewport.height,
+              ...pair,
+              band: repair.band,
+              ...disclosure(m.collisions),
+            },
+            supportedFixes: repair.fixes,
+          }));
         }
 
         // --- the hero, above the fold -----------------------------------
         // `m.hero.present` is false when the artifact legitimately has no hero
         // delta, which is a SKIP with a recorded reason and never a finding.
         if (m.hero && m.hero.present && m.hero.bottom > m.hero.innerHeight) {
-          findings.push({
-            code: 'visual/hero-below-fold',
+          const repair = foldRepair(m.hero);
+          count('layout/hero-below-fold', 1, 1);
+          findings.push(normalizedDiagnostic({
+            code: 'layout/hero-below-fold',
             severity: 'error',
             message: `At ${label} the hero delta ${m.hero.selector} ends at ${m.hero.bottom}px, `
               + `past the ${m.hero.innerHeight}px first screen. `
@@ -747,9 +854,13 @@ export async function visualCheck(htmlPath, options = {}) {
               bottom: m.hero.bottom,
               innerHeight: m.hero.innerHeight,
               overshootPx: m.hero.bottom - m.hero.innerHeight,
+              band: repair.band,
+              reported: 1,
+              total: 1,
+              truncated: 0,
             },
-            supportedFixes: foldFixes(m.hero),
-          });
+            supportedFixes: repair.fixes,
+          }));
         }
 
         // The whole of Task 20's gate, in one comparison. Vertical extent is
@@ -764,9 +875,11 @@ export async function visualCheck(htmlPath, options = {}) {
         // reaching past it (a margin, a float). Say so rather than inventing a
         // selector.
         const selector = widest ? widest.selector : 'html (no single element reaches past the window)';
+        const repair = overflowRepair(overflowPx, selector, label);
+        count('layout/overflow', 1, 1);
 
-        findings.push({
-          code: 'visual/horizontal-overflow',
+        findings.push(normalizedDiagnostic({
+          code: 'layout/overflow',
           severity: 'error',
           message: `At ${label} the page is ${overflowPx}px wider than the window: `
             + `document.documentElement.scrollWidth is ${m.scrollWidth}px against window.innerWidth ${m.innerWidth}px. `
@@ -779,10 +892,14 @@ export async function visualCheck(htmlPath, options = {}) {
             innerWidth: m.innerWidth,
             scrollWidth: m.scrollWidth,
             overflowPx,
+            band: repair.band,
             offenders: m.offenders,
+            reported: 1,
+            total: 1,
+            truncated: 0,
           },
-          supportedFixes: graduatedFixes(overflowPx, selector),
-        });
+          supportedFixes: repair.fixes,
+        }));
       } finally {
         await context.close();
       }
@@ -801,5 +918,25 @@ export async function visualCheck(htmlPath, options = {}) {
       + 'visual-check inspects the delivered file and must never modify it; the result has been discarded.');
   }
 
-  return { ok: findings.length === 0, path, sha256: after, viewports: measurements, findings };
+  // `findings.length` alone is a misleading number whenever anything was
+  // capped: nine different artifacts all reporting 15 look equally bad when
+  // they are not. The summary states reported AGAINST measured, per code.
+  const byCode = [...tally.entries()]
+    .filter(([, row]) => row.total > 0)
+    .map(([code, row]) => ({
+      code, reported: row.reported, total: row.total, truncated: row.total - row.reported,
+    }))
+    .sort((a, b) => a.code.localeCompare(b.code));
+  const total = byCode.reduce((n, row) => n + row.total, 0);
+  const summary = {
+    reported: findings.length,
+    total,
+    truncated: total - findings.length,
+    cap: MAX_REPORTED,
+    byCode,
+  };
+
+  return {
+    ok: findings.length === 0, path, sha256: after, viewports: measurements, findings, summary,
+  };
 }

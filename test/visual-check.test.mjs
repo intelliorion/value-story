@@ -89,7 +89,7 @@ test('a 3000px element is a finding at every viewport, measured in pixels and na
     assert.match(finding.message, new RegExp(String(3000 - viewport.width)));
 
     // Shaped for src/diagnostics.mjs so Task 22's conversion is a rename.
-    assert.equal(finding.code, 'visual/horizontal-overflow');
+    assert.equal(finding.code, 'layout/overflow');
     assert.equal(finding.severity, 'error');
     assert.ok(finding.supportedFixes.length > 0);
   }
@@ -246,13 +246,13 @@ p{margin:0 0 24px}
 // holding the check up.
 test('contrast: a page whose text clears the WCAG thresholds produces no finding', async () => {
   const result = await visualCheck(CONTRAST_PASS, { browser: shared, viewports: SMALL });
-  const contrast = result.findings.filter((f) => f.code === 'visual/low-contrast');
+  const contrast = result.findings.filter((f) => f.code === 'layout/contrast');
   assert.deepEqual(contrast, [], `unexpected contrast findings: ${JSON.stringify(contrast, null, 2)}`);
 });
 
 test('contrast: normal text below 4.5:1 is a finding naming both colours and the ratio', async () => {
   const result = await visualCheck(CONTRAST_FAIL, { browser: shared, viewports: SMALL });
-  const contrast = result.findings.filter((f) => f.code === 'visual/low-contrast');
+  const contrast = result.findings.filter((f) => f.code === 'layout/contrast');
   assert.ok(contrast.length > 0, 'expected a contrast finding');
 
   const dim = contrast.find((f) => /\.dim/.test(f.subject.selector));
@@ -268,19 +268,19 @@ test('contrast: normal text below 4.5:1 is a finding naming both colours and the
 test('contrast: the 18.66px bold boundary is the real WCAG rule, not a rounded one', async () => {
   const pass = await visualCheck(CONTRAST_PASS, { browser: shared, viewports: SMALL });
   assert.equal(
-    pass.findings.filter((f) => f.code === 'visual/low-contrast' && /boldish/.test(f.subject.selector)).length,
+    pass.findings.filter((f) => f.code === 'layout/contrast' && /boldish/.test(f.subject.selector)).length,
     0,
     '18.66px bold is large text and 3.15:1 clears the 3:1 threshold',
   );
   const fail = await visualCheck(CONTRAST_FAIL, { browser: shared, viewports: SMALL });
-  const small = fail.findings.find((f) => f.code === 'visual/low-contrast' && /small-bold/.test(f.subject.selector));
+  const small = fail.findings.find((f) => f.code === 'layout/contrast' && /small-bold/.test(f.subject.selector));
   assert.ok(small, '18.5px bold is NOT large text and 3.15:1 fails the 4.5:1 threshold');
   assert.equal(small.evidence.threshold, 4.5);
 });
 
 test('contrast: the background is resolved by walking ancestors, not assumed to be body', async () => {
   const result = await visualCheck(CONTRAST_FAIL, { browser: shared, viewports: SMALL });
-  const onBand = result.findings.find((f) => f.code === 'visual/low-contrast' && /on-band/.test(f.subject.selector));
+  const onBand = result.findings.find((f) => f.code === 'layout/contrast' && /on-band/.test(f.subject.selector));
   // Against body (#0A0B0D) this text is 18:1 and would never be reported.
   // It is only a finding because the effective background is the band.
   assert.ok(onBand, 'text over a light band must be measured against the band');
@@ -319,13 +319,13 @@ const COLLIDE_FAIL = write('collide-fail.html', `<!doctype html><meta charset="u
 
 test('collision: a parent containing a text-bearing child is NOT a collision', async () => {
   const result = await visualCheck(COLLIDE_PASS, { browser: shared, viewports: SMALL });
-  const hits = result.findings.filter((f) => f.code === 'visual/text-collision');
+  const hits = result.findings.filter((f) => f.code === 'layout/collision');
   assert.deepEqual(hits, [], `ancestor/descendant pairs must be excluded: ${JSON.stringify(hits, null, 2)}`);
 });
 
 test('collision: two overlapping text boxes are a finding with both selectors and the rectangle', async () => {
   const result = await visualCheck(COLLIDE_FAIL, { browser: shared, viewports: SMALL });
-  const hits = result.findings.filter((f) => f.code === 'visual/text-collision');
+  const hits = result.findings.filter((f) => f.code === 'layout/collision');
   assert.equal(hits.length, 1, `expected exactly one collision: ${JSON.stringify(hits, null, 2)}`);
   const [hit] = hits;
   const both = `${hit.evidence.a} ${hit.evidence.b}`;
@@ -356,13 +356,13 @@ const FOLD_NONE = write('fold-none.html', `<!doctype html><meta charset="utf-8">
 
 test('above the fold: a hero inside the first screen produces no finding', async () => {
   const result = await visualCheck(FOLD_PASS, { browser: shared });
-  const hits = result.findings.filter((f) => f.code === 'visual/hero-below-fold');
+  const hits = result.findings.filter((f) => f.code === 'layout/hero-below-fold');
   assert.deepEqual(hits, [], JSON.stringify(result.findings, null, 2));
 });
 
 test('above the fold: a hero past every first screen is a finding at every viewport, each naming its own', async () => {
   const result = await visualCheck(FOLD_FAIL, { browser: shared });
-  const hits = result.findings.filter((f) => f.code === 'visual/hero-below-fold');
+  const hits = result.findings.filter((f) => f.code === 'layout/hero-below-fold');
   assert.equal(hits.length, 3, 'the fold is evaluated at EVERY checked size, not only the smallest');
 
   for (const viewport of VIEWPORTS) {
@@ -390,7 +390,7 @@ test('above the fold: the fold is a per-viewport judgement, and fires only where
 <div class="push"></div>${HERO}<div class="rest"></div>`);
 
   const result = await visualCheck(partial, { browser: shared });
-  const hits = result.findings.filter((f) => f.code === 'visual/hero-below-fold');
+  const hits = result.findings.filter((f) => f.code === 'layout/hero-below-fold');
   assert.equal(hits.length, 1, `expected one: ${JSON.stringify(hits.map((h) => h.subject.viewport))}`);
   assert.equal(hits[0].subject.viewport, '1440x900');
   assert.equal(hits[0].evidence.bottom, 930);
@@ -438,11 +438,199 @@ ${geometry}<div id="outer">Outer text<div id="inner">Inner text</div></div>`);
 ${geometry}<div id="outer">Outer text</div><div id="inner">Inner text</div>`);
 
   const a = await visualCheck(nested, { browser: shared, viewports: SMALL });
-  assert.deepEqual(a.findings.filter((f) => f.code === 'visual/text-collision'), [],
+  assert.deepEqual(a.findings.filter((f) => f.code === 'layout/collision'), [],
     'a descendant inside its ancestor is never a collision');
 
   const b = await visualCheck(siblings, { browser: shared, viewports: SMALL });
-  const hits = b.findings.filter((f) => f.code === 'visual/text-collision');
+  const hits = b.findings.filter((f) => f.code === 'layout/collision');
   assert.equal(hits.length, 1, 'the identical geometry, un-nested, IS a collision');
   assert.equal(hits[0].evidence.overlap.width, 300);
+});
+
+// --- Task 22: the repair receipt ------------------------------------------
+// The gate's findings are the project's standard diagnostic envelope, in the
+// `layout/` namespace spec §5.1 names, carrying graduated fixes that say what
+// NOT to do and a truncation disclosure a consumer cannot miss.
+
+const ENVELOPE = ['code', 'severity', 'message', 'subject', 'evidence', 'supportedFixes'];
+const LAYOUT_CODES = new Set([
+  'layout/overflow', 'layout/collision', 'layout/contrast', 'layout/hero-below-fold',
+]);
+
+// One page that trips every check at once, so the envelope assertions run over
+// all four codes rather than over whichever one happens to be cheapest.
+const ALL_FOUR = write('all-four.html', `<!doctype html><meta charset="utf-8"><title>all four</title>
+<style>*{margin:0;padding:0}body{background:#0A0B0D;color:#5A616B;font:16px/1.5 system-ui}
+#wide{width:3000px;height:40px}
+#alpha{position:absolute;left:40px;top:400px;width:300px;height:100px}
+#bravo{position:absolute;left:100px;top:440px;width:300px;height:100px}
+.push{height:1200px}.vs-hero__figures{font-size:64px}</style>
+<div id="wide">wide</div><p class="dim">Dim text.</p>
+<div id="alpha">Alpha label</div><div id="bravo">Bravo label</div>
+<div class="push"></div>${HERO}`);
+
+test('every finding is the standard diagnostic envelope in the layout/ namespace', async () => {
+  const result = await visualCheck(ALL_FOUR, { browser: shared, viewports: SMALL });
+  assert.ok(result.findings.length > 0);
+
+  const seen = new Set();
+  for (const finding of result.findings) {
+    seen.add(finding.code);
+    assert.ok(LAYOUT_CODES.has(finding.code), `unexpected code: ${finding.code}`);
+    // normalizedDiagnostic's shape exactly — no more keys, no fewer.
+    assert.deepEqual(Object.keys(finding), ENVELOPE, `envelope drift on ${finding.code}`);
+    assert.equal(finding.severity, 'error');
+    assert.ok(finding.message.length > 0);
+    assert.ok(finding.supportedFixes.length > 0);
+    // An ADDRESS: a finding a reader cannot locate is not actionable.
+    assert.equal(typeof finding.subject.selector, 'string');
+    assert.ok(finding.subject.selector.length > 0, `empty selector on ${finding.code}`);
+    assert.equal(finding.subject.viewport, '1440x900', `no viewport on ${finding.code}`);
+  }
+  assert.deepEqual([...seen].sort(), [...LAYOUT_CODES].sort(),
+    `not every check fired: ${JSON.stringify([...seen])}`);
+});
+
+test('no finding still carries a visual/ code', async () => {
+  const result = await visualCheck(ALL_FOUR, { browser: shared, viewports: SMALL });
+  assert.deepEqual(result.findings.filter((f) => f.code.startsWith('visual/')), []);
+});
+
+// The three overflow bands. Each is measured from a page built to land inside
+// it, because a band that never fires is a band nobody has checked.
+const overflowBand = async (name, width) => {
+  const path = write(name, `<!doctype html><meta charset="utf-8"><title>${name}</title>
+<style>*{margin:0;padding:0}</style><div id="band" style="width:${width}px;height:40px">x</div>`);
+  const result = await visualCheck(path, { browser: shared, viewports: SMALL });
+  assert.equal(result.findings.length, 1, JSON.stringify(result.findings, null, 2));
+  return result.findings[0];
+};
+
+test('overflow band 1: 20px over asks for a gap, and forbids removing content', async () => {
+  const finding = await overflowBand('over-20.html', 1460);
+  assert.equal(finding.evidence.overflowPx, 20);
+  assert.equal(finding.evidence.band, '<=40px');
+  const fixes = finding.supportedFixes.join('\n');
+  assert.match(fixes, /tighten one gap or padding/);
+  assert.match(fixes, /by 20-40px/);
+  assert.match(fixes, /do not remove content/);
+  assert.doesNotMatch(fixes, /next chapter/);
+});
+
+test('overflow band 2: 100px over moves an element, and forbids shrinking the hero', async () => {
+  const finding = await overflowBand('over-100.html', 1540);
+  assert.equal(finding.evidence.overflowPx, 100);
+  assert.equal(finding.evidence.band, '41-200px');
+  const fixes = finding.supportedFixes.join('\n');
+  assert.match(fixes, /move a supporting element to the next chapter/);
+  assert.match(fixes, /do not shrink the hero numeral/);
+  assert.doesNotMatch(fixes, /tighten one gap or padding/);
+});
+
+test('overflow band 3: over 200px is reported as a wrong layout, not compressed', async () => {
+  const finding = await overflowBand('over-400.html', 1840);
+  assert.equal(finding.evidence.overflowPx, 400);
+  assert.equal(finding.evidence.band, '>200px');
+  const fixes = finding.supportedFixes.join('\n');
+  assert.match(fixes, /the layout is wrong for this content/);
+  assert.match(fixes, /report it rather than compressing/);
+  assert.doesNotMatch(fixes, /tighten one gap or padding/);
+});
+
+test('the three bands are three different instructions, not one text', async () => {
+  const [a, b, c] = await Promise.all([
+    overflowBand('band-a.html', 1470),
+    overflowBand('band-b.html', 1590),
+    overflowBand('band-c.html', 2000),
+  ]);
+  const first = [a, b, c].map((f) => f.supportedFixes[0]);
+  assert.equal(new Set(first).size, 3, `bands share wording: ${JSON.stringify(first, null, 2)}`);
+});
+
+// Every check says what NOT to do, not only overflow.
+test('contrast points at the token file, never at a per-element override', async () => {
+  const result = await visualCheck(CONTRAST_FAIL, { browser: shared, viewports: SMALL });
+  const contrast = result.findings.find((f) => f.code === 'layout/contrast');
+  const fixes = contrast.supportedFixes.join('\n');
+  assert.match(fixes, /src\/render\/tokens\.mjs/);
+  assert.match(fixes, /not a per-element override/);
+});
+
+test('collision and the fold each carry their own prohibition', async () => {
+  const collide = await visualCheck(COLLIDE_FAIL, { browser: shared, viewports: SMALL });
+  const hit = collide.findings.find((f) => f.code === 'layout/collision');
+  assert.match(hit.supportedFixes.join('\n'), /do not/i);
+  assert.ok(typeof hit.evidence.band === 'string' && hit.evidence.band.length > 0);
+
+  const fold = await visualCheck(FOLD_FAIL, { browser: shared, viewports: SMALL });
+  const below = fold.findings.find((f) => f.code === 'layout/hero-below-fold');
+  assert.match(below.supportedFixes.join('\n'), /do not shrink the hero numeral/);
+  assert.ok(typeof below.evidence.band === 'string' && below.evidence.band.length > 0);
+});
+
+// --- truncation disclosure -------------------------------------------------
+// The cap is correct behaviour. Reporting the capped count as if it were the
+// whole count is not: every artifact then looks equally bad.
+const MANY = write('many-contrast.html', `<!doctype html><meta charset="utf-8"><title>many</title>
+<style>*{margin:0;padding:0}body{background:#0A0B0D;color:#5A616B;font:16px/1.5 system-ui}
+p{margin:0 0 8px}</style>
+${Array.from({ length: 12 }, (_, i) => `<p class="dim-${i}">Dim line ${i}.</p>`).join('\n')}`);
+
+test('truncation: the finding carries the true total, not just the capped count', async () => {
+  const result = await visualCheck(MANY, { browser: shared, viewports: SMALL });
+  const contrast = result.findings.filter((f) => f.code === 'layout/contrast');
+  assert.equal(contrast.length, 5, 'the cap itself is unchanged');
+  for (const finding of contrast) {
+    assert.equal(finding.evidence.total, 12, 'the full count must travel with the finding');
+    assert.equal(finding.evidence.reported, 5);
+    assert.equal(finding.evidence.truncated, 7);
+  }
+});
+
+test('truncation: the measurement payload carries total alongside truncated', async () => {
+  const result = await visualCheck(MANY, { browser: shared, viewports: SMALL });
+  assert.equal(result.viewports[0].contrast.total, 12);
+  assert.equal(result.viewports[0].contrast.reported, 5);
+  assert.equal(result.viewports[0].contrast.truncated, 7);
+});
+
+test('truncation: the receipt summarises reported against measured, per code', async () => {
+  const result = await visualCheck(MANY, { browser: shared, viewports: SMALL });
+  assert.equal(result.summary.reported, 5);
+  assert.equal(result.summary.total, 12);
+  assert.equal(result.summary.truncated, 7);
+  const contrast = result.summary.byCode.find((c) => c.code === 'layout/contrast');
+  assert.deepEqual(contrast, { code: 'layout/contrast', reported: 5, total: 12, truncated: 7 });
+});
+
+test('truncation: a run with nothing withheld reports total equal to reported', async () => {
+  const result = await visualCheck(overflowPath, { browser: shared, viewports: SMALL });
+  assert.equal(result.summary.reported, 1);
+  assert.equal(result.summary.total, 1);
+  assert.equal(result.summary.truncated, 0);
+});
+
+test('truncation: the human-readable CLI output says "5 of 12", never bare "5"', () => {
+  try {
+    execFileSync('node', [CLI, 'visual-check', MANY], { stdio: 'pipe' });
+    assert.fail('expected a non-zero exit');
+  } catch (error) {
+    assert.notEqual(error.status, 0);
+    const stderr = error.stderr.toString();
+    // Three viewports x 12 failures measured, 5 reported at each.
+    assert.match(stderr, /15 of 36 findings reported/);
+    assert.match(stderr, /layout\/contrast: 15 of 36/);
+  }
+});
+
+test('truncation: the JSON receipt carries the summary', () => {
+  try {
+    execFileSync('node', [CLI, 'visual-check', MANY, '--json'], { stdio: 'pipe' });
+    assert.fail('expected a non-zero exit');
+  } catch (error) {
+    const receipt = JSON.parse(error.stderr.toString());
+    assert.equal(receipt.summary.reported, 15);
+    assert.equal(receipt.summary.total, 36);
+    assert.equal(receipt.summary.truncated, 21);
+  }
 });

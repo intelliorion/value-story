@@ -290,12 +290,19 @@ if (command === 'visual-check') {
     ok: result.ok,
     artifact: result.path,
     sha256: result.sha256,
+    summary: result.summary,
     viewports: result.viewports,
     findings: result.findings,
   };
 
+  // A receipt for an artifact with many findings runs to tens of kilobytes, and
+  // `process.exit` does not wait for an async pipe write to drain — piping this
+  // command into a consumer truncated the JSON at 8KB. Exit only once the
+  // stream has actually flushed.
+  const flush = (stream, text) => new Promise((done) => { stream.write(text, done); });
+
   if (result.ok) {
-    process.stdout.write(asJson
+    await flush(process.stdout, asJson
       ? `${JSON.stringify(receipt, null, 2)}\n`
       : `${result.viewports.map((v) => `${v.viewport.padEnd(10)} scrollWidth ${String(v.scrollWidth).padStart(5)} <= innerWidth ${v.innerWidth}`).join('\n')}\n`
         + `no horizontal overflow at ${result.viewports.length} viewport(s). This proves bounded behaviour, not that the artifact is good.\n`);
@@ -305,9 +312,22 @@ if (command === 'visual-check') {
   // A gate that reports problems and exits 0 gets ignored in scripts, so a
   // finding is a failure: non-zero, stderr, nothing on stdout — the same
   // discipline every other command here is held to.
-  process.stderr.write(asJson
+  // The findings ARRAY is capped per viewport, so printing its length alone
+  // reports every artifact as equally bad. Reported is always stated against
+  // measured — "15 of 36", never a bare "15".
+  const { summary } = result;
+  const withheld = summary.truncated > 0
+    ? `${summary.truncated} more were measured and withheld by the per-viewport cap of ${summary.cap}; `
+      + 'the full counts are in --json.'
+    : 'nothing was withheld.';
+  const perCode = summary.byCode
+    .map((row) => `  ${row.code}: ${row.reported} of ${row.total}`)
+    .join('\n');
+
+  await flush(process.stderr, asJson
     ? `${JSON.stringify(receipt, null, 2)}\n`
-    : `${result.findings.map((f) => `${f.code}: ${f.message}\n  fix: ${f.supportedFixes[0]}`).join('\n')}\n`);
+    : `${result.findings.map((f) => `${f.code}: ${f.message}\n  fix: ${f.supportedFixes[0]}`).join('\n')}\n`
+      + `\n${summary.reported} of ${summary.total} findings reported — ${withheld}\n${perCode}\n`);
   process.exit(1);
 }
 

@@ -6,13 +6,10 @@ description: Build a validated HTML value narrative for an AI initiative.
 
 Build a value narrative for the initiative I name. Follow this contract exactly.
 
-Create a self-contained HTML value narrative from a small typed JSON
-specification. The audience is leadership. They want business outcomes, not
-technology.
+Create a self-contained HTML value narrative from a small typed JSON specification.
+The audience is leadership. They want business outcomes, not technology.
 
-Run `node bin/vs.mjs help --json` to discover every command and the receipt
-format. Every capability is reachable from the command line; nothing depends on
-a particular agent harness.
+Run `node bin/vs.mjs help --json` to discover every command and the receipt format.
 
 ## What leadership asks
 
@@ -32,38 +29,30 @@ Hunt for claims answering all five. **Risk and reach are the two that get missed
 node bin/vs.mjs ingest <sources> --out <dir> --json
 ```
 
-Extracts readable text into `<dir>`, one file per document, plus
-`<dir>/evidence-manifest.json` — the record of what was read. Read that text
-before authoring anything. A skipped file is absent from the manifest because
-it was never read; do not cite it.
+Extracts readable text into `<dir>`, one file per document, plus `<dir>/evidence-manifest.json` — the record of what was read.
+Read that text before authoring anything. A skipped file is absent from the manifest because it was never read; do not cite it.
 
 ## Fast authoring path
 
-1. Run `node bin/vs.mjs schema` and read `fixtures/example.value-case.json`.
-   Read only those. Use the fixture for field shape, never for facts.
-2. Artifact first: the next action must write the candidate JSON. Do not
-   inspect renderer or validator source before the first candidate exists.
+1. Run `node bin/vs.mjs schema` and read `fixtures/example.value-case.json`. Read only those. Use the fixture for field shape, never for facts.
+2. Artifact first: the next action must write the candidate JSON. Do not inspect renderer or validator source before the first candidate exists.
 3. Author the four arc slots from the source material:
    - `problem` — What problem existed?
    - `capability` — What capability did AI unlock?
    - `outcome` — What outcome changed? References claims only.
    - `significance` — Why does it matter to the firm?
-4. Validate after every edit, and deliver once as final acceptance. Always
-   pass the manifest: without it no citation is checked, and the receipt says
-   so.
+4. Validate after every edit, and deliver once as final acceptance. Always pass the manifest: without it no citation is checked, and the receipt says so.
 
    ```bash
    node bin/vs.mjs validate <case.json> --manifest <dir>/evidence-manifest.json --json
    node bin/vs.mjs deliver  <case.json> <out.html> --manifest <dir>/evidence-manifest.json --json
    ```
 
-Do not read `src/`, `test/`, or `DESIGN.md` before the first candidate. Inspect
-implementation only after two focused repairs fail.
+Do not read `src/`, `test/`, or `DESIGN.md` before the first candidate. Inspect implementation only after two focused repairs fail.
 
 ## Claim tiers
 
-Every claim declares its evidence strength. Choose the tier the source
-supports, never the tier you wish it supported.
+Every claim declares its evidence strength. Choose the tier the source supports, never the tier you wish it supported.
 
 | tier | when | requires |
 |---|---|---|
@@ -86,8 +75,7 @@ Most source records are early-stage: a rubric score, an assumed rating, an unqua
 - One primary driver. It must have at least one claim behind it.
 - `outcome` carries claim references only. It has no field for a number.
 - Every figure that reaches the page must come from a claim.
-- Never write a hex colour, inline style, or `<script>`. The renderer owns
-  presentation entirely.
+- Never write a hex colour, inline style, or `<script>`. The renderer owns presentation entirely.
 - Preserve exact product names, metric names and units from the source.
 - Cite only sources you actually read.
 - If the sources do not support a chapter, say so plainly in your report rather than filling it with prose the evidence does not carry.
@@ -99,10 +87,8 @@ Most source records are early-stage: a rubric score, an assumed rating, an unqua
 
 ## Repair
 
-On failure, change only the diagnosed `subject`, verify `evidence`, and apply
-one fix from `supportedFixes` — each names a JSON Pointer into your document.
-Make one structural change per round. Continue while the error count reaches a
-**new minimum**; if **two consecutive rounds** do not improve the best count,
+On failure, change only the diagnosed `subject`, verify `evidence`, and apply one fix from `supportedFixes` — each names a JSON Pointer into your document.
+Make one structural change per round. Continue while the error count reaches a **new minimum**; if **two consecutive rounds** do not improve the best count,
 stop and report the unresolved diagnostics truthfully.
 
 A **non-zero exit** can never be described as success.
@@ -111,18 +97,45 @@ A **non-zero exit** can never be described as success.
 
 - Downgrading a `measured` claim to `qualitative` is **not a repair for a missing baseline**. Find the number, or state the gap.
 - Deleting a claim is **not a repair for a failing driver**.
-- **Demoting the primary driver** to escape `driver/primary-no-claim` is not a
-  repair.
+- **Demoting the primary driver** to escape `driver/primary-no-claim` is not a repair.
 - Never author an `evidence` entry for a document you **did not read**.
 - Removing or rewording a numeral to make **any** diagnostic pass is not a repair. If the figure is real, promote the claim to `measured` or `estimated` and cite evidence; if it is not real, remove the claim and say so. Rewording hides the same unsourced number under different words.
 
-Each of these passes validation by destroying the credibility the artifact
-exists to establish.
+Each of these passes validation by destroying the credibility the artifact exists to establish.
 
 ## Output
 
-Report the artifact path, the validation summary, and the specification and
-artifact hashes from the delivery receipt.
+Report the artifact path, the validation summary, and the specification and artifact hashes from the delivery receipt.
+
+## The gate
+
+```bash
+node bin/vs.mjs visual-check <out.html> --json
+```
+
+Measures the DELIVERED artifact in a real browser at three desk sizes: horizontal overflow, WCAG contrast, text collision,
+and the hero delta above the fold. Scrolling down is never a finding. Repair its `layout/…` findings like any other.
+
+Overflow repairs are graduated on the measured pixels, and each band says what NOT to do:
+
+- **≤ 40px over** — tighten one gap or padding by 20-40px; do not remove content.
+- **41-200px over** — move a supporting element to the next chapter; do not shrink the hero numeral.
+- **over 200px** — the layout is wrong for this content: report it rather than compressing it.
+
+Contrast is a token change in `src/render/tokens.mjs` — not a per-element override. The palette is centralised, so an
+override patches one instance and leaves the defect in place.
+
+### Counterfeit passes
+
+**Never: no `overflow:hidden`, no clipped content, no internal scroller, no reduced typography to pass the gate.**
+Each makes the measurement pass while making the artifact worse — the visual form of rewording a numeral away.
+
+The findings array is capped per viewport. Read `summary` for what was measured: "15 of 36", never a bare 15.
+
+## Three claims, never merged
 
 `deliver` proves the deterministic artifact checks. It does not prove the
 artifact looks right — that is a **human judgment**, and you must not claim it.
+
+`visual-check` proves bounded behaviour in a real browser. That is all it proves:
+whether the artifact is any good remains a **human judgment**, and the tool never claims it.

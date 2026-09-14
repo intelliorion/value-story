@@ -1,5 +1,5 @@
 // src/render/constellation.mjs
-import { DRIVER_GROUPS, DRIVER_LABELS } from '../drivers.mjs';
+import { DRIVER_GROUPS, DRIVER_LABELS, GROUP_LABELS } from '../drivers.mjs';
 import { esc } from './html.mjs';
 
 const COL_W = 300;
@@ -25,12 +25,13 @@ function column(ids, x, primary, secondary, heading) {
 
 export function constellation({ primary, secondary } = {}) {
   const sec = Array.isArray(secondary) ? secondary : [];
-  const height = PAD * 2 + 42 + 6 * ROW_H;
+  const rows = Math.max(DRIVER_GROUPS.effectiveness.length, DRIVER_GROUPS.efficiency.length);
+  const height = PAD * 2 + 42 + rows * ROW_H;
   return `<figure class="vs-constellation">
 <svg viewBox="0 0 ${COL_W * 2} ${height}" role="img"
      aria-label="Value drivers claimed by this initiative">
-${column(DRIVER_GROUPS.effectiveness, PAD, primary, sec, 'Effectiveness')}
-${column(DRIVER_GROUPS.efficiency, COL_W + PAD, primary, sec, 'Efficiency')}
+${column(DRIVER_GROUPS.effectiveness, PAD, primary, sec, GROUP_LABELS.effectiveness)}
+${column(DRIVER_GROUPS.efficiency, COL_W + PAD, primary, sec, GROUP_LABELS.efficiency)}
 </svg>
 </figure>`;
 }

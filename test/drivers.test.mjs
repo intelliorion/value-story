@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { ALL_DRIVERS, DRIVER_GROUPS, DRIVER_LABELS, isDriver, driverGroup } from '../src/drivers.mjs';
+import { ALL_DRIVERS, DRIVER_GROUPS, DRIVER_LABELS, GROUP_LABELS, isDriver, driverGroup } from '../src/drivers.mjs';
 
 test('exposes exactly ten drivers in two groups', () => {
   assert.equal(ALL_DRIVERS.length, 10);
@@ -31,4 +31,11 @@ test('driverGroup classifies and returns null for unknown ids', () => {
   assert.equal(driverGroup('governance-oversight'), 'effectiveness');
   assert.equal(driverGroup('capex-reduction'), 'efficiency');
   assert.equal(driverGroup('nonsense'), null);
+});
+
+test('GROUP_LABELS has a label for every group in DRIVER_GROUPS', () => {
+  for (const groupKey of Object.keys(DRIVER_GROUPS)) {
+    assert.equal(typeof GROUP_LABELS[groupKey], 'string', `missing label for group ${groupKey}`);
+    assert.ok(GROUP_LABELS[groupKey].length > 0, `label for group ${groupKey} must not be empty`);
+  }
 });

@@ -33,6 +33,11 @@ export const DRIVER_LABELS = Object.freeze({
   'capex-reduction': 'CapEx Reduction',
 });
 
+export const GROUP_LABELS = Object.freeze({
+  effectiveness: 'Effectiveness',
+  efficiency: 'Efficiency',
+});
+
 export function isDriver(id) {
   return typeof id === 'string' && ALL_DRIVERS.includes(id);
 }

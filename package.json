@@ -9,10 +9,12 @@
     "test": "node --test test/*.test.mjs",
     "build:validators": "node scripts/generate-validators.mjs",
     "build:adapters": "node scripts/generate-adapters.mjs",
-    "build:gallery": "node scripts/build-gallery.mjs"
+    "build:gallery": "node scripts/build-gallery.mjs",
+    "visual-check": "node ./bin/vs.mjs visual-check"
   },
   "dependencies": {},
   "devDependencies": {
-    "ajv": "^8.20.0"
+    "ajv": "^8.20.0",
+    "playwright": "^1.62.1"
   }
 }

@@ -22,6 +22,7 @@ const HELP = {
     { name: 'validate', usage: 'vs validate <input.json> [--manifest <m.json>] [--json]', description: 'Check schema, invariants and figure tracing. With --manifest, also refuse any citation naming a source that was never read. Returns a repair receipt on failure.' },
     { name: 'deliver', usage: 'vs deliver <input.json> <output.html> [--manifest <m.json>] [--json]', description: 'Validate, then atomically write the artifact. Final acceptance. The receipt reports citationsVerified, which is false unless --manifest was supplied.' },
     { name: 'ingest', usage: 'vs ingest <path...> --out <dir> [--json]', description: 'Extract readable text from documents (directories are read recursively) and print the manifest rows describing exactly what was read.' },
+    { name: 'visual-check', usage: 'vs visual-check <output.html> [--json]', description: 'Measure the DELIVERED artifact in a real browser at 1440x900, 1600x1000 and 1920x1080. Horizontal overflow is a finding; scrolling down is not. Requires Playwright (a devDependency). Proves bounded behaviour, never that the artifact is good.' },
   ],
   receipt: {
     onFailure: 'JSON on stderr: { schemaVersion, ok:false, diagnostics:[{ code, severity, message, subject, evidence, supportedFixes }] }',
@@ -258,6 +259,56 @@ if (command === 'ingest') {
     process.stderr.write(`warning: ${skipped.length} of ${attempted} file(s) were skipped and NOT ingested. See the manifest for the reasons.\n`);
   }
   process.exit(0);
+}
+
+if (command === 'visual-check') {
+  if (!input) {
+    process.stderr.write('usage: vs visual-check <output.html> [--json]\n');
+    process.exit(1);
+  }
+
+  // Imported HERE rather than at the top of the file so that every OTHER
+  // command keeps working with Playwright uninstalled. `scripts/visual-check.mjs`
+  // itself imports only `node:*`; Playwright is loaded dynamically inside it.
+  const { visualCheck } = await import('../scripts/visual-check.mjs');
+
+  let result;
+  try {
+    result = await visualCheck(input);
+  } catch (error) {
+    // `vsClean` errors carry a message written to be read by a person. Anything
+    // else is routed through the same diagnostic the rest of the CLI uses, so
+    // no path here can print a raw stack trace.
+    process.stderr.write(error?.vsClean
+      ? `${error.message}\n`
+      : `${fallbackDiagnostic(error, input).message}\n`);
+    process.exit(1);
+  }
+
+  const receipt = {
+    schemaVersion: 1,
+    ok: result.ok,
+    artifact: result.path,
+    sha256: result.sha256,
+    viewports: result.viewports,
+    findings: result.findings,
+  };
+
+  if (result.ok) {
+    process.stdout.write(asJson
+      ? `${JSON.stringify(receipt, null, 2)}\n`
+      : `${result.viewports.map((v) => `${v.viewport.padEnd(10)} scrollWidth ${String(v.scrollWidth).padStart(5)} <= innerWidth ${v.innerWidth}`).join('\n')}\n`
+        + `no horizontal overflow at ${result.viewports.length} viewport(s). This proves bounded behaviour, not that the artifact is good.\n`);
+    process.exit(0);
+  }
+
+  // A gate that reports problems and exits 0 gets ignored in scripts, so a
+  // finding is a failure: non-zero, stderr, nothing on stdout — the same
+  // discipline every other command here is held to.
+  process.stderr.write(asJson
+    ? `${JSON.stringify(receipt, null, 2)}\n`
+    : `${result.findings.map((f) => `${f.code}: ${f.message}\n  fix: ${f.supportedFixes[0]}`).join('\n')}\n`);
+  process.exit(1);
 }
 
 if (!['render', 'validate', 'deliver'].includes(command) || !input

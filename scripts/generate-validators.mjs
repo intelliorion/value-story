@@ -26,7 +26,14 @@ const validate = ajv.compile(read('value-case.schema.json'));
 // self-contained. Sources are reproduced verbatim from
 // ajv/dist/runtime/ucs2length.js and fast-deep-equal (ajv/dist/runtime/equal.js's
 // implementation), matching Ajv's own runtime behavior exactly.
-const UCS2LENGTH_INLINE = `(function ucs2length(str) {
+const UCS2LENGTH_INLINE = `
+/*
+ * ucs2length() below is copied verbatim from the "ajv" package, version 8.20.0
+ * (source: ajv/dist/runtime/ucs2length.js).
+ * Copyright (c) 2015-2021 Evgeny Poberezkin. Licensed under the MIT License.
+ * See THIRD_PARTY_NOTICES.md at the repository root for the full license text.
+ */
+(function ucs2length(str) {
     const len = str.length;
     let length = 0;
     let pos = 0;
@@ -42,7 +49,15 @@ const UCS2LENGTH_INLINE = `(function ucs2length(str) {
     }
     return length;
 })`;
-const EQUAL_INLINE = `(function equal(a, b) {
+const EQUAL_INLINE = `
+/*
+ * equal() below is copied verbatim from the "fast-deep-equal" package,
+ * version 3.1.3 (source: fast-deep-equal/index.js) — the implementation that
+ * ajv/dist/runtime/equal.js re-exports.
+ * Copyright (c) 2017 Evgeny Poberezkin. Licensed under the MIT License.
+ * See THIRD_PARTY_NOTICES.md at the repository root for the full license text.
+ */
+(function equal(a, b) {
     if (a === b) return true;
     if (a && b && typeof a == 'object' && typeof b == 'object') {
         if (a.constructor !== b.constructor) return false;
@@ -81,7 +96,10 @@ if (code.includes('require(')) {
   );
 }
 if (code === before) {
-  // No known runtime helpers were present this time; nothing to inline, which is fine.
+  console.warn(
+    'generate-validators: no known Ajv runtime helpers (ucs2length, equal) needed inlining this run — ' +
+      'verify whether a newer Ajv version changed what its standalone codegen emits.'
+  );
 }
 
 mkdirSync(join(root, 'generated'), { recursive: true });

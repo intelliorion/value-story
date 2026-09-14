@@ -40,8 +40,15 @@ test('requires reporting an unsourceable chapter instead of padding it', () => {
   assert.ok(SKILL.includes('rather than filling it with prose the evidence does not carry'));
 });
 
-test('states that chapter prose numerals are not traced', () => {
-  assert.ok(SKILL.includes('does not check numerals written into chapter prose'));
+test('states the numeral-tracing rule positively and completely', () => {
+  // Stated as a rule, not as a list of exceptions: an enumeration of
+  // untraced places is what made the earlier wording wrong -- it read as
+  // exhaustive while omitting evidence titles and the initiative name.
+  assert.ok(SKILL.includes('traces numerals **only** inside claim cards and the hero'));
+  assert.ok(SKILL.includes('Every other numeral anywhere on the page'));
+  assert.ok(SKILL.includes('is never checked'));
+  assert.ok(!SKILL.includes('does not check numerals written into chapter prose'),
+    'the old exception-enumerating wording must be gone');
 });
 
 test('states the stop condition and the exit-code rule', () => {

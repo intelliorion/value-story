@@ -81,9 +81,9 @@ export const CLAIM_CARD_CSS = `
   font-weight:700;font-variant-numeric:tabular-nums;letter-spacing:-0.035em;
   line-height:1.05;margin:calc(var(--vs-unit)*3) 0 0;
   display:flex;align-items:baseline;gap:calc(var(--vs-unit)*1.5);flex-wrap:wrap}
-.vs-claim__from{color:var(--vs-ink-faint);text-decoration:line-through;
+.vs-claim__from{color:var(--vs-ink-muted);text-decoration:line-through;
   text-decoration-thickness:1px}
-.vs-claim__arrow{color:var(--vs-ink-faint);font-size:0.5em}
+.vs-claim__arrow{color:var(--vs-ink-muted);font-size:0.5em}
 .vs-claim__unit{font-family:var(--vs-font-text);font-size:var(--vs-body);
   font-weight:400;letter-spacing:0;color:var(--vs-ink-dim);white-space:nowrap}
 .vs-claim__tier{font-family:var(--vs-font-display);font-size:var(--vs-micro);
@@ -92,7 +92,7 @@ export const CLAIM_CARD_CSS = `
 .vs-claim__assumption{font-family:var(--vs-font-text);font-size:var(--vs-small);
   color:var(--vs-ink-dim);line-height:1.55;margin:calc(var(--vs-unit)*1.5) 0 0}
 .vs-claim__owner{font-family:var(--vs-font-display);font-size:var(--vs-micro);
-  text-transform:uppercase;letter-spacing:0.1em;color:var(--vs-ink-faint);
+  text-transform:uppercase;letter-spacing:0.1em;color:var(--vs-ink-muted);
   margin:calc(var(--vs-unit)*1.5) 0 0}
 .vs-claim__statement{font-family:var(--vs-font-text);font-size:var(--vs-h2);
   line-height:1.45;margin:0}

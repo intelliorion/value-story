@@ -40,7 +40,7 @@ export const CONSTELLATION_CSS = `
 .vs-constellation{margin:calc(var(--vs-unit)*4) 0 0;padding:0;max-width:720px}
 .vs-constellation svg{width:100%;height:auto;overflow:visible}
 .vs-node text{font-family:var(--vs-font-display);font-size:14px;
-  fill:var(--vs-ink-faint);dominant-baseline:middle}
+  fill:var(--vs-ink-muted);dominant-baseline:middle}
 .vs-node circle{fill:var(--vs-ink-faint)}
 .vs-node__heading{font-family:var(--vs-font-display);font-size:11px;
   text-transform:uppercase;letter-spacing:0.16em;fill:var(--vs-ink-dim)}
@@ -48,7 +48,8 @@ export const CONSTELLATION_CSS = `
 .vs-node[data-state="primary"] circle{fill:var(--vs-accent);r:6}
 .vs-node[data-state="secondary"] text{fill:var(--vs-ink-dim)}
 .vs-node[data-state="secondary"] circle{fill:var(--vs-ink-dim)}
-.vs-node[data-state="dark"] text{fill:var(--vs-ink-faint);opacity:0.45}
-.vs-node[data-state="dark"] circle{fill:var(--vs-ink-faint);opacity:0.3}
-@media print{.vs-node[data-state="dark"]{opacity:0.35}}
+.vs-node[data-state="dark"] text{fill:var(--vs-ink-muted)}
+.vs-node[data-state="dark"] circle{fill:none;stroke:var(--vs-ink-faint);
+  stroke-width:1.5;r:3.5}
+@media print{.vs-node[data-state="dark"] circle{stroke:var(--vs-print-rule)}}
 `;

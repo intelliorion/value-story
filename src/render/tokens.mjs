@@ -5,6 +5,7 @@ export const TOKENS = Object.freeze({
   '--vs-ink': '#F4F5F7',
   '--vs-ink-dim': '#9AA1AB',
   '--vs-ink-faint': '#5A616B',
+  '--vs-ink-muted': '#8D949E',
   '--vs-rule': '#23272E',
   '--vs-accent': '#F5B942',
   '--vs-accent-soft': 'rgba(245,185,66,0.14)',

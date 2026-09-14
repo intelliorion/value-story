@@ -6,6 +6,7 @@ color:
   ink:           "#F4F5F7"
   ink-dim:       "#9AA1AB"
   ink-faint:     "#5A616B"
+  ink-muted:     "#8D949E"
   rule:          "#23272E"
   accent:        "#F5B942"
   accent-soft:   "rgba(245,185,66,0.14)"

@@ -65,9 +65,9 @@ export const HERO_CSS = `
   font-weight:700;letter-spacing:-0.045em;line-height:0.92;font-variant-numeric:tabular-nums;
   margin:calc(var(--vs-unit)*2) 0 0;display:flex;align-items:baseline;
   gap:calc(var(--vs-unit)*2.5);flex-wrap:wrap}
-.vs-hero__from{color:var(--vs-ink-faint);text-decoration:line-through;
+.vs-hero__from{color:var(--vs-ink-muted);text-decoration:line-through;
   text-decoration-thickness:0.045em}
-.vs-hero__arrow{color:var(--vs-ink-faint);font-size:0.34em;
+.vs-hero__arrow{color:var(--vs-ink-muted);font-size:0.34em;
   transform:translateY(-0.22em)}
 /* D1: the unit is sized on its own rem clamp, not scaled off the numeral, and
    sits on the numeral's baseline so a long unit label cannot collide. */

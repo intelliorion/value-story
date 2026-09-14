@@ -42,3 +42,26 @@ test('page emits a self-contained document with no external references', () => {
 test('page escapes the title', () => {
   assert.ok(page({ title: '<x>', styles: '', body: '' }).includes('<title>&lt;x&gt;</title>'));
 });
+
+test('page throws when styles contains </style>', () => {
+  assert.throws(
+    () => page({ title: 'T', styles: 'body{color:red}</style><script>x</script>', body: '' }),
+    /styles.*<\/style/i
+  );
+});
+
+test('page throws when styles contains </STYLE > or case/spacing variations', () => {
+  assert.throws(
+    () => page({ title: 'T', styles: '.a{}</STYLE >', body: '' }),
+    /styles.*<\/style/i
+  );
+});
+
+test('page succeeds for realistic stylesheets with > in selectors', () => {
+  const html = page({
+    title: 'T',
+    styles: '.parent > .child { color: red; }',
+    body: '<main>x</main>'
+  });
+  assert.ok(html.includes('.parent > .child { color: red; }'));
+});

@@ -365,3 +365,82 @@ test('a zero CRC on a NON-empty entry is still checked', () => {
   const entry = listEntries(zip)[0];
   assert.throws(() => readEntry(zip, entry), /CRC-32/);
 });
+
+// ---------------------------------------------------------------------------
+// Part encoding — UTF-16 is legal XML. Reading it as UTF-8 yields
+// null-interleaved garbage that strips to nothing, which a caller cannot tell
+// from a genuinely empty document.
+// ---------------------------------------------------------------------------
+
+const utf16 = (text, endianness) => {
+  const bom = endianness === 'be' ? Buffer.from([0xfe, 0xff]) : Buffer.from([0xff, 0xfe]);
+  const body = Buffer.from(text, 'utf16le');
+  if (endianness === 'be') body.swap16();
+  return Buffer.concat([bom, body]);
+};
+
+const UTF16_DOCUMENT = `<?xml version="1.0" encoding="UTF-16"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>
+${p(wt('A UTF-16 paragraph about cycle time.'))}
+${p(wt('Kroger &amp; Co. caf&#233; — 週次'))}
+</w:body></w:document>`;
+
+for (const endianness of ['le', 'be']) {
+  test(`docxText reads a UTF-16${endianness.toUpperCase()} document.xml correctly`, () => {
+    const zip = makeZip([
+      { name: '[Content_Types].xml', data: '<Types/>', method: 0 },
+      { name: 'word/document.xml', data: utf16(UTF16_DOCUMENT, endianness), method: 8 },
+    ]);
+    const lines = docxText(zip).split('\n');
+    assert.deepEqual(lines, [
+      'A UTF-16 paragraph about cycle time.',
+      'Kroger & Co. café — 週次',
+    ]);
+  });
+}
+
+test('an ordinary UTF-8 part with multibyte characters is unchanged', () => {
+  const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<w:document xmlns:w="w"><w:body>${p(wt('Cycle time — 週次 review'))}</w:body></w:document>`;
+  const zip = makeZip([{ name: 'word/document.xml', data: xml, method: 8 }]);
+  assert.equal(docxText(zip), 'Cycle time — 週次 review');
+});
+
+test('a part of invalid UTF-8 bytes throws, naming the part', () => {
+  const broken = Buffer.concat([
+    Buffer.from('<w:document><w:body><w:p><w:r><w:t>', 'utf8'),
+    Buffer.from([0xc3, 0x28, 0xe2, 0x82]), // truncated sequences: not valid UTF-8, not a BOM
+    Buffer.from('</w:t></w:r></w:p></w:body></w:document>', 'utf8'),
+  ]);
+  const zip = makeZip([{ name: 'word/document.xml', data: broken, method: 8 }]);
+  assert.throws(() => docxText(zip), (err) => {
+    assert.match(err.message, /word\/document\.xml/);
+    assert.match(err.message, /utf-8/i);
+    return true;
+  });
+});
+
+test('a prolog declaring UTF-16 over non-UTF-16 bytes throws rather than guessing', () => {
+  const xml = `<?xml version="1.0" encoding="UTF-16"?><w:document><w:body>${p(wt('x'))}</w:body></w:document>`;
+  const zip = makeZip([{ name: 'word/document.xml', data: xml, method: 8 }]);
+  assert.throws(() => docxText(zip), /word\/document\.xml.*UTF-16/s);
+});
+
+test('pptxText reads a UTF-16 slide among UTF-8 slides, still in numeric order', () => {
+  const files = [{ name: '[Content_Types].xml', data: '<Types/>', method: 0 }];
+  for (const n of [1, 2, 10, 3]) {
+    const xml = slideXml(at(`Slide ${n} headline`) + at(`Body ${n} &#x2014; detail`));
+    files.push({
+      name: `ppt/slides/slide${n}.xml`,
+      data: n === 3 ? utf16(xml, 'be') : xml,
+      method: n % 2 === 0 ? 0 : 8,
+    });
+  }
+  const lines = pptxText(makeZip(files)).split('\n');
+  assert.deepEqual(
+    lines.map((l) => Number(l.match(/^Slide (\d+):/)[1])),
+    [1, 2, 3, 10],
+  );
+  assert.ok(lines[2].includes('Slide 3 headline'), lines[2]);
+  assert.ok(lines[2].includes('Body 3 — detail'), lines[2]);
+});

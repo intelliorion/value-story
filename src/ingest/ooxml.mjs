@@ -37,13 +37,70 @@ export function decodeEntities(text) {
   });
 }
 
+/**
+ * Decode one XML part's bytes to a string.
+ *
+ * OOXML parts are overwhelmingly UTF-8, but UTF-16 is legal XML and Word will
+ * emit it. Decoding UTF-16 bytes as UTF-8 yields null-interleaved garbage that
+ * strips down to nonsense or nothing, which a caller cannot tell from a genuinely
+ * empty document — so the encoding is established first, and anything that
+ * cannot be decoded faithfully throws rather than returning substituted text.
+ */
+export function decodeXmlPart(bytes, partName) {
+  const where = `the ${partName} part`;
+
+  // 1. A byte order mark is the reliable signal, so it wins.
+  if (bytes.length >= 2) {
+    if (bytes[0] === 0xff && bytes[1] === 0xfe) return decodeWith('utf-16le', bytes.subarray(2), where);
+    if (bytes[0] === 0xfe && bytes[1] === 0xff) return decodeWith('utf-16be', bytes.subarray(2), where);
+  }
+  if (bytes.length >= 3 && bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf) {
+    return decodeWith('utf-8', bytes.subarray(3), where);
+  }
+
+  // 2. No BOM: an XML document begins with '<', so the null-byte pattern of the
+  //    first two bytes distinguishes the two UTF-16 orders unambiguously.
+  if (bytes.length >= 2 && bytes[0] === 0x3c && bytes[1] === 0x00) return decodeWith('utf-16le', bytes, where);
+  if (bytes.length >= 2 && bytes[0] === 0x00 && bytes[1] === 0x3c) return decodeWith('utf-16be', bytes, where);
+
+  // 3. Otherwise decode as UTF-8, strictly. If the prolog names some other
+  //    encoding, honour it when the platform knows the label.
+  const text = decodeWith('utf-8', bytes, where);
+  const declared = /^<\?xml[^>]*?\bencoding\s*=\s*["']([\w.:-]+)["']/i.exec(text)?.[1];
+  if (!declared) return text;
+  const label = declared.toLowerCase();
+  if (label === 'utf-8' || label === 'utf8' || label === 'us-ascii' || label === 'ascii') return text;
+  if (/^utf-?16/.test(label)) {
+    throw new Error(
+      `Unreadable OOXML: ${where} declares encoding "${declared}" but carries neither a UTF-16 byte order mark nor UTF-16 bytes.`,
+    );
+  }
+  return decodeWith(label, bytes, where, declared);
+}
+
+function decodeWith(label, bytes, where, declared = label) {
+  let decoder;
+  try {
+    decoder = new TextDecoder(label, { fatal: true, ignoreBOM: false });
+  } catch {
+    throw new Error(`Unreadable OOXML: ${where} declares encoding "${declared}", which this reader cannot decode.`);
+  }
+  try {
+    return decoder.decode(bytes);
+  } catch {
+    throw new Error(
+      `Unreadable OOXML: ${where} is not valid ${declared} — it could not be decoded, so no text is returned rather than substituted text.`,
+    );
+  }
+}
+
 /** Collapse runs of whitespace so one paragraph stays on one line. */
 const tidy = (text) => text.replace(/\s+/g, ' ').trim();
 
 function part(buffer, name) {
   const entry = listEntries(buffer).find((e) => e.name === name);
   if (!entry) throw new Error(`This archive has no ${name} part, so it is not a readable .docx.`);
-  return readEntry(buffer, entry).toString('utf8');
+  return decodeXmlPart(readEntry(buffer, entry), name);
 }
 
 /**
@@ -101,7 +158,7 @@ export function pptxText(buffer) {
 
   const lines = [];
   for (const { number, entry } of slides) {
-    const xml = readEntry(buffer, entry).toString('utf8');
+    const xml = decodeXmlPart(readEntry(buffer, entry), entry.name);
     const paragraphs = [];
     for (const m of xml.matchAll(A_PARAGRAPH)) {
       const text = tidy(runsToText(m[1] ?? '', A_RUNS));

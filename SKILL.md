@@ -71,8 +71,7 @@ supports, never the tier you wish it supported.
 | `estimated` | a number is inferred or asserted, not measured | `assumption.statement` and `assumption.owner` |
 | `qualitative` | a capability changed with no number | `statement`; no numeric fields |
 
-Name a real person in `assumption.owner`. If nobody will own the estimate, it
-is not an estimate — make it qualitative.
+Name a real person in `assumption.owner` — one the source actually names, never an invented plausible-sounding one. If nobody will own the estimate, it is not an estimate — make it qualitative.
 
 ## Authoring invariants
 
@@ -83,6 +82,7 @@ is not an estimate — make it qualitative.
   presentation entirely.
 - Preserve exact product names, metric names and units from the source.
 - Cite only sources you actually read.
+- If the sources do not support a chapter, say so plainly in your report rather than filling it with prose the evidence does not carry.
 
 ## Repair
 
@@ -101,6 +101,7 @@ A **non-zero exit** can never be described as success.
 - **Demoting the primary driver** to escape `driver/primary-no-claim` is not a
   repair.
 - Never author an `evidence` entry for a document you **did not read**.
+- Rewording a qualitative claim to remove a flagged numeral, instead of **promoting it to `measured` or `estimated` with cited evidence**, is not a repair for `render/figure-untraced` — it hides the same unsourced number under different words.
 
 Each of these passes validation by destroying the credibility the artifact
 exists to establish.

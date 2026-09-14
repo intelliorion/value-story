@@ -27,6 +27,18 @@ test('names every prohibited repair', () => {
   }
 });
 
+test('closes the reword-the-numeral loophole', () => {
+  assert.ok(SKILL.includes('not a repair for `render/figure-untraced`'));
+});
+
+test('requires the assumption owner to come from the source', () => {
+  assert.ok(SKILL.includes('one the source actually names'));
+});
+
+test('requires reporting an unsourceable chapter instead of padding it', () => {
+  assert.ok(SKILL.includes('rather than filling it with prose the evidence does not carry'));
+});
+
 test('states the stop condition and the exit-code rule', () => {
   assert.ok(SKILL.includes('new minimum'));
   assert.ok(SKILL.includes('two consecutive rounds'));

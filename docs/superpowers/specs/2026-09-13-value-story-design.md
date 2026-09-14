@@ -248,6 +248,38 @@ estimated"* — not as a summed number that cannot be defended. Measured,
 estimated, and qualitative claims are not arithmetically compatible, and the
 portfolio view does not pretend otherwise.
 
+### 4.8 The five leadership questions
+
+Leadership asks five questions of the portfolio. They are a DIFFERENT taxonomy
+from the ten drivers, and the mapping between them is not one-to-one. It is
+specified here so the portfolio view (M4) implements a decision rather than an
+assumption, and so extraction (M2) knows what to hunt for.
+
+| Question | Answered by | Claim shape to look for |
+|---|---|---|
+| How much productivity? | `productivity`, `operational-adaptability` | throughput, cycle time, cases per person |
+| How much risk reduced? | `governance-oversight`, `standardization-knowledge` | control exceptions, error/defect rate, audit findings — `direction: decrease` |
+| What new capabilities? | `arc.capability.novelty` + `qualitative` claims | capability statements; `novelty: first-of-kind` or `reusable` |
+| How much cost avoided? | the four Efficiency drivers | currency-unit claims |
+| How many employees/functions enabled? | `productivity`, `high-value-skills-ip` | headcount or function counts — `unit` of people or functions |
+
+Three consequences:
+
+1. **No schema change is required.** Every one of these is expressible as an
+   ordinary claim; `metric` and `unit` are free strings by design. The gap was
+   never in the IR.
+2. **Risk has no driver of its own.** The stakeholders' ten-driver taxonomy
+   contains none, so risk answers route through Governance & Oversight. This is
+   inherited from their framework, not introduced here, and should be confirmed
+   with them rather than silently reinterpreted.
+3. **The portfolio view must report per question, not only per driver.**
+   Reporting driver coverage alone answers "which drivers do we touch," which is
+   not what was asked.
+
+Extraction (M2) and `SKILL.md` (M1) must prompt for reach and risk figures
+explicitly. Left to inference, an extractor finds the cost and time numbers that
+sit on the surface of a status report and silently omits these two.
+
 ---
 
 ## 5. Diagnostics

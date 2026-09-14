@@ -3,6 +3,18 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { heroDelta, HERO_CSS } from '../src/render/delta.mjs';
 
+function rulesMatching(css, selectorSubstring) {
+  return css
+    .split('}')
+    .map((chunk) => chunk.trim())
+    .filter(Boolean)
+    .map((chunk) => {
+      const i = chunk.indexOf('{');
+      return i === -1 ? null : { selector: chunk.slice(0, i), body: chunk.slice(i + 1) };
+    })
+    .filter((rule) => rule && rule.selector.includes(selectorSubstring));
+}
+
 const claim = {
   id: 'c1', metric: 'case turnaround time', unit: 'hours',
   tier: 'measured', direction: 'decrease',
@@ -44,16 +56,15 @@ test('HERO_CSS contains no hex color literals', () => {
 });
 
 test('HERO_CSS: measured tier references --vs-accent', () => {
-  assert.ok(HERO_CSS.includes('.vs-hero--measured'), 'has measured rule');
-  const measured = HERO_CSS.match(/\.vs-hero--measured[^}]*}/);
-  assert.ok(measured && measured[0].includes('--vs-accent'), 'measured rule must reference accent');
+  const measuredRules = rulesMatching(HERO_CSS, '.vs-hero--measured');
+  assert.ok(measuredRules.length >= 1, 'at least one measured rule found');
+  assert.ok(measuredRules.some((r) => r.body.includes('--vs-accent')), 'at least one measured rule must reference accent');
 });
 
 test('HERO_CSS: --vs-accent never appears in estimated tier rules', () => {
-  // Check that --vs-accent does not appear in .vs-hero--estimated or any descendant selector starting with it
-  const estimatedSection = HERO_CSS.match(/\.vs-hero--estimated[^}]*}[\s\S]*?(?=\.vs-hero|@media|$)/);
-  const relevantCss = estimatedSection ? estimatedSection[0] : '';
-  assert.ok(!relevantCss.includes('--vs-accent'), 'estimated rules must never reference accent');
+  const estimatedRules = rulesMatching(HERO_CSS, '.vs-hero--estimated');
+  assert.ok(estimatedRules.length >= 2, 'at least two estimated rules found (proves helper finds all)');
+  assert.ok(estimatedRules.every((r) => !r.body.includes('--vs-accent')), 'no estimated rule may contain accent');
 });
 
 test('bogus tier normalizes to qualitative and renders no hero', () => {

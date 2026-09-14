@@ -2,6 +2,18 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { claimCard, claimFigures, formatValue, CLAIM_CARD_CSS } from '../src/render/claim-card.mjs';
 
+function rulesMatching(css, selectorSubstring) {
+  return css
+    .split('}')
+    .map((chunk) => chunk.trim())
+    .filter(Boolean)
+    .map((chunk) => {
+      const i = chunk.indexOf('{');
+      return i === -1 ? null : { selector: chunk.slice(0, i), body: chunk.slice(i + 1) };
+    })
+    .filter((rule) => rule && rule.selector.includes(selectorSubstring));
+}
+
 const measured = {
   id: 'c1', driver: 'labor-cost-efficiency', metric: 'case turnaround time',
   unit: 'hours', tier: 'measured', direction: 'decrease',
@@ -102,16 +114,15 @@ test('CLAIM_CARD_CSS contains no hex color literals', () => {
 });
 
 test('CLAIM_CARD_CSS: measured tier references --vs-accent', () => {
-  const measuredAccentPattern = /\.vs-claim--measured[^}]*--vs-accent/;
-  assert.ok(measuredAccentPattern.test(CLAIM_CARD_CSS),
-    'measured tier must reference --vs-accent for visual confidence');
+  const measuredRules = rulesMatching(CLAIM_CARD_CSS, '.vs-claim--measured');
+  assert.ok(measuredRules.length >= 1, 'at least one measured rule found');
+  assert.ok(measuredRules.some((r) => r.body.includes('--vs-accent')), 'at least one measured rule must reference accent');
 });
 
 test('CLAIM_CARD_CSS: estimated tier never references --vs-accent', () => {
-  const estimatedBlock = CLAIM_CARD_CSS.match(/\.vs-claim--estimated[^}]*\}/);
-  assert.ok(estimatedBlock, 'estimated tier rule must exist');
-  assert.ok(!estimatedBlock[0].includes('--vs-accent'),
-    'estimated tier must never use --vs-accent');
+  const estimatedRules = rulesMatching(CLAIM_CARD_CSS, '.vs-claim--estimated');
+  assert.ok(estimatedRules.length >= 1, 'at least one estimated rule found (proves helper finds rules)');
+  assert.ok(estimatedRules.every((r) => !r.body.includes('--vs-accent')), 'no estimated rule may contain accent');
 });
 
 test('bogus tier normalizes to qualitative', () => {

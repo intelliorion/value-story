@@ -381,6 +381,97 @@ test('deliver with a failing manifest check writes no artifact', () => {
   }
 });
 
+// A receipt that reports `citationsVerified` on success and drops it on
+// failure is a receipt a consumer cannot read: the absence of the field is
+// indistinguishable from "not applicable". The field must be honest on BOTH
+// outcomes, or the successful case is the only one anyone can trust.
+test('a FAILING deliver --manifest still reports that citations were checked', () => {
+  const dir = tmp();
+  try {
+    const doc = good();
+    const casePath = join(dir, 'case.json');
+    writeFileSync(casePath, JSON.stringify(doc), 'utf8');
+    const manifest = manifestFor(dir, doc);
+    // Make a cited source stale, so the failure is a manifest failure.
+    writeFileSync(manifest.documents[1].path, 'edited since it was read\n', 'utf8');
+    const path = writeManifest(dir, manifest);
+
+    const { stderr } = runFailure(
+      ['deliver', casePath, join(dir, 'never.html'), '--manifest', path, '--json']);
+    const receipt = JSON.parse(stderr);
+    assert.equal(receipt.ok, false);
+    assert.equal(receipt.citationsVerified, true,
+      'citations WERE checked against a manifest; the failure receipt must say so');
+    assert.ok(receipt.diagnostics.some((d) => d.code === 'evidence/manifest-stale'));
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('a FAILING validate --manifest still reports that citations were checked', () => {
+  const dir = tmp();
+  try {
+    const doc = good();
+    const casePath = join(dir, 'case.json');
+    writeFileSync(casePath, JSON.stringify(doc), 'utf8');
+    const path = writeManifest(dir, manifestFor(dir, doc, { titles: { 1: 'Unrelated memo' } }));
+    const { stderr } = runFailure(['validate', casePath, '--manifest', path, '--json']);
+    const receipt = JSON.parse(stderr);
+    assert.equal(receipt.ok, false);
+    assert.equal(receipt.citationsVerified, true);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('a failure with NO manifest reports citationsVerified false, never absent', () => {
+  const dir = tmp();
+  try {
+    // A failure that has nothing to do with citations: a semantic fault.
+    const doc = good();
+    doc.claims[0].driver = 'differentiation';
+    const casePath = join(dir, 'case.json');
+    writeFileSync(casePath, JSON.stringify(doc), 'utf8');
+
+    for (const args of [
+      ['validate', casePath, '--json'],
+      ['deliver', casePath, join(dir, 'never.html'), '--json'],
+    ]) {
+      const receipt = JSON.parse(runFailure(args).stderr);
+      assert.equal(receipt.ok, false);
+      assert.equal(receipt.citationsVerified, false,
+        `no manifest was supplied, so ${args[0]} must not leave the question open`);
+    }
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('a manifest that cannot be read reports citationsVerified false', () => {
+  const receipt = JSON.parse(
+    runFailure(['validate', FIXTURE, '--manifest', '/nope/never.json', '--json']).stderr);
+  assert.equal(receipt.citationsVerified, false,
+    'a manifest was asked for and never read; nothing was verified');
+});
+
+// Before the citation check could even be reached, the field is OMITTED rather
+// than false: absence says "the question never arose", which is the truth when
+// the document did not parse. No reading of an absent field claims that
+// citations were checked.
+test('a failure before the check could run omits the field rather than guessing', () => {
+  const dir = tmp();
+  try {
+    const bad = join(dir, 'bad.json');
+    writeFileSync(bad, '{ not json', 'utf8');
+    const receipt = JSON.parse(runFailure(['validate', bad, '--json']).stderr);
+    assert.equal(receipt.diagnostics[0].code, 'input/json-parse');
+    assert.ok(!('citationsVerified' in receipt),
+      'the document never parsed; the citation question never arose');
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("a typo'd flag is still rejected -- the accepted set was widened, not loosened", () => {
   const dir = tmp();
   try {

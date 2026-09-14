@@ -106,8 +106,20 @@ if (manifestPath !== null && command !== 'validate' && command !== 'deliver') {
   process.exit(1);
 }
 
-function emitFailure(diagnostics) {
-  const receipt = { schemaVersion: 1, ok: false, diagnostics };
+/**
+ * @param {object[]} diagnostics
+ * @param {object} [extra] further receipt fields, merged ahead of `diagnostics`.
+ *
+ * A receipt that reports `citationsVerified` on success and drops it on failure
+ * is one a consumer cannot read: the absence of the field would be
+ * indistinguishable from "not applicable". So the callers that KNOW whether a
+ * manifest was in play pass it here, on the failure path as much as the success
+ * path. Callers that failed before the question could arise pass nothing, and
+ * absence then means exactly that. No state of this receipt can be read as a
+ * claim that citations were checked when they were not.
+ */
+function emitFailure(diagnostics, extra = {}) {
+  const receipt = { schemaVersion: 1, ok: false, ...extra, diagnostics };
   process.stderr.write(asJson
     ? `${JSON.stringify(receipt, null, 2)}\n`
     : `${diagnostics.map((d) => `${d.code}: ${d.message}\n  fix: ${d.supportedFixes[0] || 'none offered'}`).join('\n')}\n`);
@@ -238,7 +250,10 @@ if (manifestPath !== null) {
   try {
     manifest = readManifest(manifestPath);
   } catch (error) {
-    emitFailure(error.vsDiagnostics || [fallbackDiagnostic(error, manifestPath)]);
+    // A manifest WAS asked for and could not be read, so nothing was verified.
+    // That is `false`, not absence: the question arose and has an answer.
+    emitFailure(error.vsDiagnostics || [fallbackDiagnostic(error, manifestPath)],
+      { citationsVerified: false });
   }
 }
 const options = manifest ? { manifest } : {};
@@ -248,16 +263,19 @@ if (command === 'render') {
   process.stdout.write(`${output}\n`);
 } else if (command === 'validate') {
   const result = validateCase(doc, options);
-  if (!result.ok) emitFailure(result.diagnostics);
+  // `citationsVerified` rides BOTH outcomes for the same reason: silence about
+  // whether citations were checked is what lets an unverified case pass for a
+  // verified one, and a failure receipt is read just as carefully as a success.
+  const citationsVerified = Boolean(manifest);
+  if (!result.ok) emitFailure(result.diagnostics, { citationsVerified });
   process.stdout.write(asJson
-    // `citationsVerified` appears here for the same reason it appears on the
-    // delivery receipt: silence about whether citations were checked is what
-    // lets an unverified case pass for a verified one.
-    ? `${JSON.stringify({ schemaVersion: 1, ok: true, citationsVerified: Boolean(manifest), diagnostics: [] }, null, 2)}\n`
+    ? `${JSON.stringify({ schemaVersion: 1, ok: true, citationsVerified, diagnostics: [] }, null, 2)}\n`
     : 'ok\n');
 } else {
   const receipt = deliverCase(doc, output, options);
-  if (!receipt.ok) emitFailure(receipt.diagnostics);
+  // Taken from the receipt deliverCase already computed, rather than recomputed
+  // here, so the CLI cannot drift from the library's answer.
+  if (!receipt.ok) emitFailure(receipt.diagnostics, { citationsVerified: receipt.citationsVerified });
   process.stdout.write(asJson
     ? `${JSON.stringify({ schemaVersion: 1, ...receipt }, null, 2)}\n`
     : `${receipt.artifact}\n`);

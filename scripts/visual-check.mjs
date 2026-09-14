@@ -41,7 +41,17 @@ const INSTALL_HINT = 'Playwright is required by `vs visual-check` and is not ins
 const NEVER = 'do not add overflow:hidden, clip the content, introduce an internal scroller, '
   + 'or reduce the typography — those hide the overflow instead of resolving it';
 
-/** Spec §6.5. The hero delta must clear the first screen at the smallest size. */
+/**
+ * Spec §6.5: the hero delta must clear the first screen at EVERY checked size.
+ *
+ * Not just the smallest. "The smallest is binding anyway" is an assumption about
+ * the CSS, not a property of the check — `--vs-hero-unit` is
+ * `clamp(1rem, 1.5vw, 1.5rem)`, which does not saturate until 1600px, so
+ * hero-adjacent sizing genuinely differs between 1440 and 1600/1920. The
+ * difference is a couple of pixels against ~600px of headroom today, which is
+ * exactly why it must not be assumed: it costs nothing to measure, and the
+ * assumption becomes load-bearing the moment a layout reflows for real.
+ */
 export const HERO_SELECTOR = '.vs-hero__figures';
 
 /**
@@ -140,8 +150,8 @@ function foldFixes(hero) {
 
 /**
  * Runs inside the page. One pass, one context, four measurements: horizontal
- * overflow, text contrast, text collision, and — at the smallest viewport only
- * — whether the hero delta clears the first screen.
+ * overflow, text contrast, text collision, and whether the hero delta clears
+ * the first screen.
  *
  * Everything here is measurement. Nothing is judged; the decisions are taken in
  * Node from the numbers this returns. A finding that says "something overflows"
@@ -200,7 +210,14 @@ function measure(opts) {
 
   const css = (c) => `rgb(${Math.round(c.r)}, ${Math.round(c.g)}, ${Math.round(c.b)})`;
 
-  // WCAG 2.1 relative luminance and contrast ratio, verbatim.
+  // WCAG 2.1 relative luminance and contrast ratio.
+  //
+  // The branch threshold is 0.04045, KNOWINGLY not the 0.03928 the published
+  // WCAG 2.1 text literally prints. 0.04045 is the continuity-consistent value
+  // (the point where the linear and power segments actually meet), it is what
+  // the sRGB specification and every production checker use, and the two
+  // diverge only for 8-bit channel values around 10. Written down because an
+  // undocumented deviation from the spec's literal text reads as a typo.
   const channel = (v) => {
     const c = v / 255;
     return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
@@ -664,13 +681,6 @@ export async function visualCheck(htmlPath, options = {}) {
   const findings = [];
   const url = pathToFileURL(path).href;
 
-  // The fold is a claim about the FIRST screen, and the first screen is at its
-  // least forgiving on the smallest size that is checked.
-  const smallest = viewports.reduce(
-    (a, b) => (b.height < a.height || (b.height === a.height && b.width < a.width) ? b : a),
-    viewports[0],
-  );
-
   try {
     for (const viewport of viewports) {
       const context = await browser.newContext({ viewport });
@@ -682,7 +692,7 @@ export async function visualCheck(htmlPath, options = {}) {
         await settle(page);
         const m = await page.evaluate(measure, {
           heroSelector: HERO_SELECTOR,
-          aboveFold: viewport === smallest,
+          aboveFold: true,
           maxReported: MAX_REPORTED,
         });
         const label = `${viewport.width}x${viewport.height}`;
@@ -719,14 +729,14 @@ export async function visualCheck(htmlPath, options = {}) {
         }
 
         // --- the hero, above the fold -----------------------------------
-        // `m.hero` is null at every viewport but the smallest, and
-        // `present:false` when the artifact legitimately has no hero.
+        // `m.hero.present` is false when the artifact legitimately has no hero
+        // delta, which is a SKIP with a recorded reason and never a finding.
         if (m.hero && m.hero.present && m.hero.bottom > m.hero.innerHeight) {
           findings.push({
             code: 'visual/hero-below-fold',
             severity: 'error',
-            message: `At ${label} — the smallest checked size — the hero delta ${m.hero.selector} `
-              + `ends at ${m.hero.bottom}px, past the ${m.hero.innerHeight}px first screen. `
+            message: `At ${label} the hero delta ${m.hero.selector} ends at ${m.hero.bottom}px, `
+              + `past the ${m.hero.innerHeight}px first screen. `
               + 'The reader has to scroll before seeing the number the artifact exists to carry.',
             subject: { viewport: label, selector: m.hero.selector },
             evidence: {

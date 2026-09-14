@@ -237,6 +237,13 @@ p{margin:0 0 24px}
 <p class="small-bold">Bold but under 18.66px</p>
 <div class="empty"></div>`);
 
+// NOTE ON THIS TEST'S LIMITS. On its own it is vacuous: with contrast output
+// disabled entirely it still passes, because a check that reports nothing
+// reports no false positives either. It is a guard against OVER-reporting and
+// nothing more. What keeps contrast honest is the three paired positive
+// controls below — each fails loudly if the check stops firing — and the fail
+// fixture they read from. Do not mistake this one green tick for the thing
+// holding the check up.
 test('contrast: a page whose text clears the WCAG thresholds produces no finding', async () => {
   const result = await visualCheck(CONTRAST_PASS, { browser: shared, viewports: SMALL });
   const contrast = result.findings.filter((f) => f.code === 'visual/low-contrast');
@@ -353,22 +360,60 @@ test('above the fold: a hero inside the first screen produces no finding', async
   assert.deepEqual(hits, [], JSON.stringify(result.findings, null, 2));
 });
 
-test('above the fold: a hero pushed past the first screen is a finding, once, at the smallest viewport', async () => {
+test('above the fold: a hero past every first screen is a finding at every viewport, each naming its own', async () => {
   const result = await visualCheck(FOLD_FAIL, { browser: shared });
   const hits = result.findings.filter((f) => f.code === 'visual/hero-below-fold');
-  assert.equal(hits.length, 1, 'the fold is checked at the smallest viewport only');
-  assert.equal(hits[0].subject.viewport, '1440x900');
-  assert.ok(hits[0].evidence.bottom > 900, `bottom was ${hits[0].evidence.bottom}`);
-  assert.equal(hits[0].evidence.viewportHeight, 900);
-  assert.match(hits[0].message, /900/);
+  assert.equal(hits.length, 3, 'the fold is evaluated at EVERY checked size, not only the smallest');
+
+  for (const viewport of VIEWPORTS) {
+    const label = `${viewport.width}x${viewport.height}`;
+    const hit = hits.find((f) => f.subject.viewport === label);
+    // A finding that can fire at one size and not another is useless unless it
+    // says WHICH size it fired at.
+    assert.ok(hit, `no fold finding for ${label}`);
+    assert.match(hit.message, new RegExp(label.replace('x', 'x')));
+    assert.equal(hit.evidence.viewportHeight, viewport.height);
+    assert.equal(hit.evidence.innerHeight, viewport.height);
+    assert.ok(hit.evidence.bottom > viewport.height, `bottom was ${hit.evidence.bottom}`);
+    assert.equal(hit.evidence.overshootPx, hit.evidence.bottom - viewport.height);
+  }
 });
 
-test('above the fold: no hero is SKIPPED with a reason, never a failure', async () => {
+test('above the fold: the fold is a per-viewport judgement, and fires only where it is true', async () => {
+  // 930px of hero: past the 900px first screen, inside the 1000px and 1080px
+  // ones. Checking only the smallest would still catch this; checking only the
+  // largest would miss it. The point is that each size is judged on its own
+  // measurement rather than on an assumption about how the CSS reflows.
+  const partial = write('fold-partial.html', `<!doctype html><meta charset="utf-8"><title>fold partial</title>
+<style>*{margin:0;padding:0}body{background:#0A0B0D;color:#F4F5F7;font:16px/1.5 system-ui}
+.push{height:850px}.vs-hero__figures{font-size:64px;height:80px}.rest{height:1800px}</style>
+<div class="push"></div>${HERO}<div class="rest"></div>`);
+
+  const result = await visualCheck(partial, { browser: shared });
+  const hits = result.findings.filter((f) => f.code === 'visual/hero-below-fold');
+  assert.equal(hits.length, 1, `expected one: ${JSON.stringify(hits.map((h) => h.subject.viewport))}`);
+  assert.equal(hits[0].subject.viewport, '1440x900');
+  assert.equal(hits[0].evidence.bottom, 930);
+
+  // And every viewport was actually MEASURED, not merely skipped into silence.
+  assert.equal(result.viewports.length, 3);
+  for (const v of result.viewports) {
+    assert.equal(v.hero.present, true, `${v.viewport} did not evaluate the hero`);
+    assert.equal(v.hero.bottom, 930);
+    assert.equal(v.hero.innerHeight, v.innerHeight);
+  }
+});
+
+test('above the fold: no hero is SKIPPED with a reason at every viewport, never a failure', async () => {
   const result = await visualCheck(FOLD_NONE, { browser: shared });
   assert.equal(result.ok, true, JSON.stringify(result.findings, null, 2));
-  const smallest = result.viewports[0];
-  assert.equal(smallest.hero.present, false);
-  assert.match(smallest.hero.reason, /no .*hero|not present/i);
+  assert.equal(result.viewports.length, 3);
+  // The skip is recorded at EVERY size now that every size is evaluated —
+  // three silences with a reason, not one silence and two blanks.
+  for (const v of result.viewports) {
+    assert.equal(v.hero.present, false, `${v.viewport}`);
+    assert.match(v.hero.reason, /no element matches \.vs-hero__figures/);
+  }
 });
 
 test('the three new checks share the one browser the gate already launched', async () => {

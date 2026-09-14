@@ -63,10 +63,21 @@ const isAllowed = (specifier) =>
  * Finds STATIC module specifiers. Every pattern here requires whitespace or a
  * quote directly after the keyword, so `import(` — dynamic import — cannot
  * match any of them.
+ *
+ * The whitespace between `from` and the specifier is `\s*`, which includes
+ * NEWLINES, and the patterns are run over the whole file rather than line by
+ * line. A statement split across lines —
+ *
+ *     import x from
+ *       'some-package';
+ *
+ * — is legal, is what a formatter with a narrow print width will produce, and
+ * slips straight past a line-at-a-time scan. It does not occur in this tree
+ * today; that is not a reason to leave the hole open.
  */
 const STATIC_FORMS = [
   // import x from 'y' / import {a} from 'y' / import * as z from 'y' /
-  // export {a} from 'y' / export * from 'y'
+  // export {a} from 'y' / export * from 'y' — specifier may sit on a later line
   /(?:^|[;\s])(?:import|export)\s[^;]*?\sfrom\s*['"]([^'"]+)['"]/g,
   // import 'y'  — side-effect only
   /(?:^|[;\s])import\s+['"]([^'"]+)['"]/g,
@@ -75,29 +86,48 @@ const STATIC_FORMS = [
 ];
 
 /**
+ * Blanks whole-line comments while PRESERVING line count and offsets, so the
+ * patterns can run across the whole file and a match still maps back to its
+ * real line.
+ *
+ * Comment LINES are blanked rather than comments stripped from the whole file:
+ * a block-comment strip can swallow a regex literal or a `//` inside a string
+ * such as 'file://', and silently stop scanning real code.
+ */
+function blankCommentLines(source) {
+  return source.split('\n').map((line) => {
+    const trimmed = line.trim();
+    if (trimmed.startsWith('//') || trimmed.startsWith('*') || trimmed.startsWith('/*')) {
+      return ' '.repeat(line.length);
+    }
+    return line;
+  }).join('\n');
+}
+
+/**
  * @returns {Array<{line: number, specifier: string, text: string}>} every
  *   static specifier in `source`, with the line it sits on so a failure names
  *   a place rather than a fact.
  */
 function staticSpecifiers(source) {
-  const found = [];
+  const scanned = blankCommentLines(source);
   const lines = source.split('\n');
-  for (let i = 0; i < lines.length; i++) {
-    const text = lines[i];
-    // Skip comment lines rather than stripping comments from the whole file:
-    // a block-comment strip can swallow a regex literal or a `//` inside a
-    // string such as 'file://', and silently stop scanning real code.
-    const trimmed = text.trim();
-    if (trimmed.startsWith('//') || trimmed.startsWith('*') || trimmed.startsWith('/*')) continue;
-    for (const pattern of STATIC_FORMS) {
-      pattern.lastIndex = 0;
-      let match;
-      while ((match = pattern.exec(text)) !== null) {
-        found.push({ line: i + 1, specifier: match[1], text: trimmed });
-      }
+  const found = [];
+  for (const pattern of STATIC_FORMS) {
+    pattern.lastIndex = 0;
+    let match;
+    while ((match = pattern.exec(scanned)) !== null) {
+      // The KEYWORD's line, not the match start's: the leading `[;\s]` the
+      // patterns consume may itself be the newline that ends the line before,
+      // which would report the statement one line early. And the statement may
+      // end several lines further down, so the end is no use either.
+      const head = match[0].search(/import|export|require/);
+      const start = match.index + (head < 0 ? 0 : head);
+      const line = scanned.slice(0, start).split('\n').length;
+      found.push({ line, specifier: match[1], text: (lines[line - 1] || '').trim() });
     }
   }
-  return found;
+  return found.sort((a, b) => a.line - b.line);
 }
 
 test('package.json declares dependencies, and declares it empty', () => {
@@ -152,6 +182,19 @@ test('the matcher catches bare imports and leaves dynamic import() alone', () =>
   assert.deepEqual(caught("export { a } from 'some-pkg';"), ['some-pkg']);
   assert.deepEqual(caught("const x = require('express');"), ['express']);
 
+  // Split across lines. Legal, and a formatter with a narrow print width will
+  // write it. A line-at-a-time scan never sees it.
+  assert.deepEqual(caught("import x from\n  'some-package';"), ['some-package']);
+  assert.deepEqual(caught("import {\n  chromium,\n} from 'playwright';"), ['playwright']);
+  assert.deepEqual(caught("export {\n  a,\n} from\n  'some-pkg';"), ['some-pkg']);
+
+  // …and the line reported is the keyword's line, not the specifier's, so the
+  // failure message points at the statement.
+  assert.deepEqual(
+    staticSpecifiers("const a = 1;\nimport x from\n  'some-package';").map((f) => f.line),
+    [2],
+  );
+
   // …and every one of those is correctly judged a violation.
   for (const specifier of ['lodash', 'playwright', 'ajv/dist/2020.js']) {
     assert.equal(isAllowed(specifier), false, `${specifier} should not be allowed`);
@@ -161,6 +204,16 @@ test('the matcher catches bare imports and leaves dynamic import() alone', () =>
   assert.deepEqual(caught("const { chromium } = await import('playwright');"), []);
   assert.deepEqual(caught("const m = await import('playwright');"), []);
   assert.deepEqual(caught("return import('playwright');"), []);
+  assert.deepEqual(caught("const m = await import(\n  'playwright',\n);"), []);
+
+  // Comment lines are still not scanned, and blanking them must not shift the
+  // line numbers of the code around them.
+  assert.deepEqual(caught("// import x from 'lodash';"), []);
+  assert.deepEqual(caught(" * import x from 'lodash';"), []);
+  assert.deepEqual(
+    staticSpecifiers("// import x from 'lodash';\nimport y from 'node:fs';").map((f) => f.line),
+    [2],
+  );
 
   // What real src/ code looks like: allowed, and recognised as such.
   assert.deepEqual(caught("import { readFileSync } from 'node:fs';"), ['node:fs']);

@@ -500,8 +500,10 @@ rounded pills on every control. A cheap file with disproportionate effect.
 Playwright loads the delivered HTML — without modifying or re-rendering it — and
 measures:
 
-- `scrollWidth <= innerWidth` and `scrollHeight <= innerHeight` at 1440×900,
-  1600×1000 and 1920×1080
+- `scrollWidth <= innerWidth` at 1440×900, 1600×1000 and 1920×1080.
+  `scrollHeight` is recorded but is never a finding — a value narrative is
+  expected to run several screens tall; only horizontal overflow indicates
+  a broken layout.
 - text and background contrast against the token palette
 - label and mark collision
 - the hero delta is above the fold at every checked size

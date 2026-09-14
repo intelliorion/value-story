@@ -178,3 +178,98 @@ test('the suppression graph this module emits is acyclic', () => {
   );
   // poisoned was a copy; the real, collected edge set (`edges`) was never mutated.
 });
+
+// --- Fix 1: a `measured` claim must carry evidence on both points. ---
+//
+// Spec 4.6 invariant 4 and the 4.3 tier table. Enforced here rather than in
+// the schema so the diagnostic can name the claim and emit a real pointer;
+// a schema error on an optional property would be generic.
+
+test('a measured claim with no baseline evidence_ref is rejected', () => {
+  const doc = good();
+  delete doc.claims[0].baseline.evidence_ref;
+  const d = semanticDiagnostics(doc).find((x) => x.code === 'claim/measured-no-evidence');
+  assert.ok(d, 'a measured claim with an uncited baseline must be rejected');
+  assert.equal(d.subject.pointer, '/claims/0/baseline/evidence_ref');
+  assert.equal(d.subject.id, 'c1');
+  assert.ok(d.supportedFixes.some((f) => f.includes('/claims/0/baseline/evidence_ref')));
+});
+
+test('a measured claim with no current evidence_ref is rejected', () => {
+  const doc = good();
+  delete doc.claims[0].current.evidence_ref;
+  const d = semanticDiagnostics(doc).find((x) => x.code === 'claim/measured-no-evidence');
+  assert.ok(d, 'a measured claim with an uncited current must be rejected');
+  assert.equal(d.subject.pointer, '/claims/0/current/evidence_ref');
+});
+
+test('a measured claim citing evidence on both points is clean', () => {
+  assert.ok(!codes(good()).includes('claim/measured-no-evidence'));
+});
+
+test('an estimated claim without an evidence_ref does NOT fire measured-no-evidence', () => {
+  const doc = good();
+  // c2 is estimated: its points carry no evidence_ref by design. Spec 4.3
+  // requires assumption.statement and assumption.owner for that tier, not a
+  // citation.
+  assert.equal(doc.claims[1].tier, 'estimated');
+  assert.equal(doc.claims[1].baseline.evidence_ref, undefined);
+  assert.ok(!codes(doc).includes('claim/measured-no-evidence'));
+});
+
+// --- Fix 7: claim/direction-mismatch ---
+
+test('a stated direction contradicting the figures is flagged', () => {
+  const doc = good();
+  doc.claims[0].direction = 'increase'; // c1 falls 72 -> 9
+  const d = semanticDiagnostics(doc).find((x) => x.code === 'claim/direction-mismatch');
+  assert.ok(d, 'a rising label on a falling number must be rejected');
+  assert.equal(d.subject.pointer, '/claims/0/direction');
+  assert.equal(d.evidence.actualDirection, 'decrease');
+  assert.ok(d.supportedFixes.some((f) => f.includes('"decrease"')));
+});
+
+test('the fixture’s directions agree with its figures', () => {
+  assert.ok(!codes(good()).includes('claim/direction-mismatch'));
+});
+
+test('equal baseline and current are not a direction mismatch either way', () => {
+  // No movement contradicts neither "increase" nor "decrease", so neither
+  // is an assertion the figures disprove. Reporting one would demand a
+  // change with no truthful answer.
+  for (const direction of ['increase', 'decrease']) {
+    const doc = good();
+    doc.claims[0].direction = direction;
+    doc.claims[0].current.value = doc.claims[0].baseline.value;
+    assert.ok(!codes(doc).includes('claim/direction-mismatch'),
+      `equal values must not fire for direction ${direction}`);
+  }
+});
+
+// --- Fix 11: duplicate ids silently drop claims ---
+
+test('a duplicate claim id is flagged at the later occurrence', () => {
+  const doc = good();
+  doc.claims[1].id = 'c1';
+  const d = semanticDiagnostics(doc).find((x) => x.code === 'claim/duplicate-id');
+  assert.ok(d, 'a duplicate claim id must be rejected — the renderer keeps only the last');
+  assert.equal(d.subject.pointer, '/claims/1/id');
+  assert.equal(d.evidence.firstIndex, 0);
+});
+
+test('three claims sharing one id do not validate clean', () => {
+  const doc = good();
+  for (const c of doc.claims) c.id = 'c1';
+  doc.arc.outcome.claim_refs = ['c1'];
+  const fired = codes(doc).filter((c) => c === 'claim/duplicate-id');
+  assert.equal(fired.length, 2, 'both later duplicates must be named');
+});
+
+test('a duplicate evidence ref is flagged at the later occurrence', () => {
+  const doc = good();
+  doc.evidence[1].ref = 'e1';
+  const d = semanticDiagnostics(doc).find((x) => x.code === 'evidence/duplicate-ref');
+  assert.ok(d, 'a duplicate evidence ref must be rejected');
+  assert.equal(d.subject.pointer, '/evidence/1/ref');
+  assert.equal(d.evidence.firstIndex, 0);
+});

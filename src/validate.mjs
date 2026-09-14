@@ -28,7 +28,11 @@ function codeFor(error) {
   if (/\/driver$|\/drivers\/(primary|secondary)/.test(p) && error.keyword === 'enum') {
     return 'driver/unknown';
   }
-  if (/\/evidence\/\d+$/.test(p)) return 'evidence/locator-missing';
+  // Deliberately NO special case for /evidence/N. `locator` is optional in
+  // the schema, so a schema error on an evidence item is never a missing
+  // locator -- it is a missing `ref`, `kind`, `title` or `date`, or a
+  // malformed one. Asserting a false cause is worse than a generic code: the
+  // generic diagnostic still carries the exact pointer and Ajv's own message.
   return 'schema/invalid';
 }
 

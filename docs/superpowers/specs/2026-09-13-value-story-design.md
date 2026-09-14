@@ -312,18 +312,36 @@ real `supportedFixes`.
 
 ```
 input/json-parse            input/read                  internal/unclassified
+output/write                schema/invalid
 
 arc/slot-missing            arc/slot-empty              arc/outcome-inline-number
 driver/primary-no-claim     driver/unknown              driver/secondary-shadows-primary
 claim/tier-missing          claim/driver-undeclared     claim/unit-missing
-claim/measured-no-baseline  claim/estimated-no-assumption
+claim/measured-no-baseline  claim/measured-no-evidence  claim/estimated-no-assumption
 claim/estimated-no-owner    claim/qualitative-has-number
-claim/direction-mismatch
-evidence/ref-unresolved     evidence/locator-missing    evidence/not-in-manifest
-render/figure-untraced
+claim/direction-mismatch    claim/duplicate-id
+evidence/ref-unresolved     evidence/duplicate-ref      evidence/not-in-manifest
+render/figure-untraced      render/region-nested
 motion/budget-exceeded
 layout/overflow             layout/collision
 ```
+
+`claim/measured-no-evidence` enforces invariant 4 of §4.6 and the `measured`
+row of the §4.3 table: a `measured` claim whose `baseline` or `current` carries
+no `evidence_ref` is an estimate wearing the measured treatment. It is emitted
+by the semantic layer rather than the schema, because only there is the claim's
+tier in scope — an `estimated` claim's points legitimately carry no citation
+(they carry a named assumption owner instead), so the schema cannot make
+`evidence_ref` required on a point.
+
+`output/write` is an OUTPUT fault: the document validated, and the artifact
+could not be written to the destination given. Its `subject` names that
+destination. It must never be reported as an input fault.
+
+`evidence/locator-missing` was removed: `locator` is optional in §4.4, so the
+code could never fire for its stated meaning. A schema failure on an evidence
+item now reports `schema/invalid` with the exact pointer, rather than asserting
+a cause that is not the cause.
 
 ### 5.2 The manifest
 
@@ -369,6 +387,10 @@ honest does not work.
 - Demoting the primary driver is not a repair for `driver/primary-no-claim`.
 - Authoring an `evidence` entry for a document that was not read is prohibited
   without exception.
+- Removing or rewording a numeral to make any diagnostic pass is not a repair.
+  `supportedFixes` therefore never offers it: `render/figure-untraced` offers
+  promotion to `measured`/`estimated` with cited evidence, or removal of the
+  CLAIM with that stated in the report.
 
 ### 5.5 The repair loop
 

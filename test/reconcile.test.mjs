@@ -71,7 +71,13 @@ test('a numeral in a qualitative statement is flagged with qualitative-specific 
   assert.equal(d.subject.pointer, `/claims/${doc.claims.length - 1}/tier`);
   assert.match(d.message, /qualitative/i);
   assert.ok(d.supportedFixes.some((fix) => fix.includes(d.subject.pointer)));
-  assert.ok(d.supportedFixes.some((fix) => /reword/i.test(fix)));
+  // SKILL.md: removing or rewording a numeral to make any diagnostic pass is
+  // not a repair. The machine-readable channel is the one the repair loop
+  // actually obeys, so it must not offer the prohibited action at all.
+  assert.ok(!d.supportedFixes.some((fix) => /reword/i.test(fix)),
+    'rewording the numeral is a prohibited repair and must not be offered');
+  assert.ok(d.supportedFixes.some((fix) => /remove this claim/i.test(fix)),
+    'the legitimate alternative is removing the CLAIM and saying so');
 });
 
 test('a claim/hero region that cannot be reliably bounded raises loudly instead of truncating silently', () => {
@@ -85,4 +91,32 @@ test('a claim/hero region that cannot be reliably bounded raises loudly instead 
 </article>`;
   const d = reconcileDiagnostics(doc, html);
   assert.ok(d.some((x) => x.code === 'render/region-nested' && x.severity === 'error'));
+});
+
+test('no supportedFix anywhere offers the prohibited numeral repairs', () => {
+  // Two shapes: a numeral inside a qualitative claim, and a numeral on
+  // screen that no claim authorises at all.
+  const qualitative = good();
+  qualitative.claims.push({
+    id: 'c-qual', driver: 'governance-oversight', tier: 'qualitative',
+    statement: 'defect rate reduced to 0 across all lines', evidence_ref: 'e4',
+  });
+  qualitative.arc.outcome.claim_refs.push('c-qual');
+
+  const cases = [
+    reconcileDiagnostics(qualitative, renderCase(qualitative)),
+    reconcileDiagnostics(good(), renderCase(good()).replace('>9<', '>4<')),
+  ];
+
+  const fixes = cases.flat().flatMap((d) => d.supportedFixes);
+  assert.ok(fixes.length > 0, 'expected both shapes to produce diagnostics');
+  for (const fix of fixes) {
+    assert.ok(!/reword/i.test(fix), `prohibited repair offered: ${fix}`);
+    assert.ok(!/remove the figure/i.test(fix), `prohibited repair offered: ${fix}`);
+  }
+  // And the legitimate repairs are named.
+  assert.ok(fixes.some((f) => /"measured" or "estimated"/.test(f)),
+    'promotion with cited evidence must be offered');
+  assert.ok(fixes.some((f) => /remove the claim|remove this claim/i.test(f)),
+    'removing the CLAIM and reporting it must be offered');
 });

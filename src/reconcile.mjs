@@ -103,7 +103,7 @@ export function reconcileDiagnostics(doc, html) {
             tierPointer
               ? `promote the claim by setting ${tierPointer} to "measured" or "estimated" and citing evidence for this figure`
               : 'promote the claim to "measured" or "estimated" and cite evidence for this figure',
-            'reword the statement without the numeral',
+            'remove this claim from /claims and say so in the report, if the figure is not real',
           ],
         }));
         continue;
@@ -115,8 +115,8 @@ export function reconcileDiagnostics(doc, html) {
         subject: { figure },
         evidence: { authorised: [...authorised] },
         supportedFixes: [
-          'add a claim to /claims that carries this figure',
-          'remove the figure from the rendered content',
+          'add a claim to /claims that carries this figure, with tier "measured" or "estimated" and cited evidence',
+          'remove the claim that puts this figure on the page and say so in the report, if the figure is not real',
         ],
       }));
     }

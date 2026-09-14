@@ -24,6 +24,9 @@ export const TOKENS = Object.freeze({
   '--vs-radius': '10px',
   '--vs-duration': '820ms',
   '--vs-ease': 'cubic-bezier(0.16, 1, 0.3, 1)',
+  '--vs-print-bg': '#FFFFFF',
+  '--vs-print-ink': '#111111',
+  '--vs-print-rule': '#CCCCCC',
 });
 
 export function tokensToCss(tokens = TOKENS) {

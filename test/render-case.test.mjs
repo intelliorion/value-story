@@ -2,7 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { renderCase } from '../src/render/render-case.mjs';
-import { ARC_SLOTS } from '../src/render/chapters.mjs';
+import { ARC_SLOTS, CHAPTERS_CSS } from '../src/render/chapters.mjs';
 
 const doc = {
   schema_version: 1,
@@ -66,4 +66,20 @@ test('evidence registry renders with every source', () => {
 test('a missing arc slot does not throw', () => {
   const partial = { ...doc, arc: { ...doc.arc, significance: undefined } };
   assert.doesNotThrow(() => renderCase(partial));
+});
+
+test('CHAPTERS_CSS contains no hex color literals', () => {
+  assert.ok(!/#[0-9a-fA-F]{3,6}/.test(CHAPTERS_CSS), 'no hex colors anywhere in CHAPTERS_CSS');
+});
+
+test('composed stylesheet has no hex color literals outside the :root token block', () => {
+  const html = renderCase(doc);
+  const styleOpen = html.indexOf('<style>');
+  const styleClose = html.indexOf('</style>');
+  const styles = html.slice(styleOpen + '<style>'.length, styleClose);
+  const rootEnd = styles.indexOf('}') + 1; // :root{...} is the first rule emitted
+  assert.ok(styles.startsWith(':root{'), 'stylesheet must start with the :root token block');
+  const afterRoot = styles.slice(rootEnd);
+  assert.ok(!/#[0-9a-fA-F]{3,6}/.test(afterRoot),
+    'no hex colors outside the :root token block');
 });

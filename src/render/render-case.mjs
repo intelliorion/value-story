@@ -19,7 +19,7 @@ body{margin:0;background:var(--vs-bg);color:var(--vs-ink);
   margin:0 0 calc(var(--vs-unit)*3)}
 .vs-evidence ol{margin:0;padding-left:1.2em;color:var(--vs-ink-dim);
   font-size:var(--vs-micro);line-height:1.9}
-@media print{body{background:#fff;color:#111}}
+@media print{body{background:var(--vs-print-bg);color:var(--vs-print-ink)}}
 `;
 
 function evidenceList(evidence = []) {

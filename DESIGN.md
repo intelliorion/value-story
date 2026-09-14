@@ -11,6 +11,9 @@ color:
   accent-soft:   "rgba(245,185,66,0.14)"
   positive:      "#4ADE80"
   negative:      "#FF6B5A"
+  print-bg:      "#FFFFFF"
+  print-ink:     "#111111"
+  print-rule:    "#CCCCCC"
 type:
   display: "-apple-system, 'SF Pro Display', Inter, system-ui, sans-serif"
   text:    "ui-serif, 'Iowan Old Style', Palatino, Georgia, serif"
@@ -43,6 +46,8 @@ Explicitly not corporate-deck blue and grey.
 
 - The renderer never authors a hex value. It selects semantic classes whose
   colours resolve from the tokens above.
+- Print colours are tokens too (`print-bg`, `print-ink`, `print-rule`) — a
+  designer changing the print treatment edits the token system, not a renderer.
 - The accent marks measured evidence only. An estimate never receives it.
 - Type: display face for numerals and headlines, serif for prose. The contrast
   between the two is the editorial signal.

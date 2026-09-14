@@ -42,5 +42,5 @@ export const CHAPTERS_CSS = `
 .vs-chapter__claims{display:grid;gap:calc(var(--vs-unit)*2);
   grid-template-columns:repeat(auto-fit,minmax(280px,1fr));
   margin-top:calc(var(--vs-unit)*5)}
-@media print{.vs-chapter{break-inside:avoid;border-bottom:1px solid #ccc}}
+@media print{.vs-chapter{break-inside:avoid;border-bottom:1px solid var(--vs-print-rule)}}
 `;

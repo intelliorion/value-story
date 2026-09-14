@@ -52,7 +52,7 @@ test('print path carries no animation', () => {
 });
 
 test('HERO_CSS contains no hex color literals', () => {
-  assert.ok(!/^[^@]*#[0-9a-fA-F]/m.test(HERO_CSS), 'no hex colors outside media queries');
+  assert.ok(!/#[0-9a-fA-F]{3,6}/.test(HERO_CSS), 'no hex colors anywhere in HERO_CSS');
 });
 
 test('HERO_CSS: measured tier references --vs-accent', () => {

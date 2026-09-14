@@ -26,9 +26,36 @@ const HELP = {
 };
 
 const rawArgv = process.argv.slice(2);
+// Computed up front from the raw argv so it is safe to use before the
+// (later) positional parse -- both the --help short-circuit and every
+// failure path need it.
+const asJson = rawArgv.includes('--json');
 
-// Addition 1: reject any unrecognised flag rather than silently treating it
-// as a positional argument. The only flag this CLI understands is --json.
+// help/usage text is generated once and only routed to a destination -- a
+// deliberate `vs help`/`--help` request goes to stdout and exits 0; every
+// failure path below reuses the exact same text on stderr with a non-zero
+// exit, so the two can never drift apart.
+function helpPayload() {
+  if (asJson) return `${JSON.stringify(HELP, null, 2)}\n`;
+  const lines = HELP.commands.map((c) => `  ${c.usage.padEnd(46)} ${c.description}`);
+  return `${HELP.description}\n\n${lines.join('\n')}\n`;
+}
+
+function printHelp(dest) {
+  (dest === 'stderr' ? process.stderr : process.stdout).write(helpPayload());
+}
+
+// A deliberate request for help always succeeds, regardless of anything
+// else on the command line.
+if (rawArgv.includes('--help') || rawArgv.includes('-h')) {
+  printHelp('stdout');
+  process.exit(0);
+}
+
+// Addition 1: reject any other unrecognised flag rather than silently
+// treating it as a positional argument. The CLI understands only --json
+// (plus --help/-h, handled above). This is itself a failure path: nothing
+// useful goes to stdout, and stderr carries the diagnostic.
 for (const arg of rawArgv) {
   if (arg === '--json') continue;
   if (arg === '-' || arg === '--' || arg.startsWith('-')) {
@@ -38,7 +65,6 @@ for (const arg of rawArgv) {
 }
 
 const argv = rawArgv;
-const asJson = argv.includes('--json');
 const [command, input, output] = argv.filter((a) => a !== '--json');
 
 function emitFailure(diagnostics) {
@@ -49,17 +75,8 @@ function emitFailure(diagnostics) {
   process.exit(1);
 }
 
-function printHelp() {
-  if (asJson) {
-    process.stdout.write(`${JSON.stringify(HELP, null, 2)}\n`);
-    return;
-  }
-  const lines = HELP.commands.map((c) => `  ${c.usage.padEnd(46)} ${c.description}`);
-  process.stdout.write(`${HELP.description}\n\n${lines.join('\n')}\n`);
-}
-
-if (!command || command === 'help' || command === '--help' || command === '-h') {
-  printHelp();
+if (!command || command === 'help') {
+  printHelp('stdout');
   process.exit(0);
 }
 
@@ -71,7 +88,8 @@ if (command === 'schema') {
 
 if (!['render', 'validate', 'deliver'].includes(command) || !input
     || ((command === 'render' || command === 'deliver') && !output)) {
-  printHelp();
+  process.stderr.write(`unknown or incomplete command: vs ${rawArgv.join(' ') || '(none)'}\n\n`);
+  printHelp('stderr');
   process.exit(1);
 }
 

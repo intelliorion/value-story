@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { mkdtempSync, readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -8,6 +8,29 @@ import { fileURLToPath } from 'node:url';
 
 const CLI = fileURLToPath(new URL('../bin/vs.mjs', import.meta.url));
 const FIXTURE = fileURLToPath(new URL('../fixtures/example.value-case.json', import.meta.url));
+
+// A non-zero exit with empty stderr is indistinguishable, to an agent
+// harness reading only stderr, from a silent crash -- so every failure path
+// must be non-zero, write something to stderr, and write nothing to stdout.
+function assertFailure(args, stderrPattern, options = {}) {
+  try {
+    execFileSync('node', [CLI, ...args], { stdio: 'pipe', ...options });
+    assert.fail(`expected non-zero exit for: vs ${args.join(' ')}`);
+  } catch (error) {
+    assert.notEqual(error.status, 0, `expected non-zero exit for: vs ${args.join(' ')}`);
+    const stderr = error.stderr.toString();
+    const stdout = error.stdout.toString();
+    assert.notEqual(stderr.length, 0, `expected non-empty stderr for: vs ${args.join(' ')}`);
+    assert.equal(stdout.length, 0, `expected empty stdout for: vs ${args.join(' ')}, got: ${stdout}`);
+    if (stderrPattern) assert.match(stderr, stderrPattern);
+    return { status: error.status, stderr, stdout };
+  }
+}
+
+function assertHelpSuccess(args) {
+  const stdout = execFileSync('node', [CLI, ...args], { stdio: 'pipe' });
+  return stdout.toString();
+}
 
 test('render writes a self-contained artifact and exits zero', () => {
   const dir = mkdtempSync(join(tmpdir(), 'vs-'));
@@ -18,72 +41,73 @@ test('render writes a self-contained artifact and exits zero', () => {
   assert.ok(!/https?:\/\//.test(html));
 });
 
-test('render exits non-zero on unreadable input', () => {
-  try {
-    execFileSync('node', [CLI, 'render', '/nope.json', '/tmp/x.html'], { stdio: 'pipe' });
-    assert.fail('should have exited non-zero');
-  } catch (error) {
-    assert.notEqual(error.status, 0);
-    const stderr = error.stderr.toString();
-    assert.match(stderr, /input\/read|nope\.json|ENOENT/);
-  }
+test('render exits non-zero on unreadable input, stderr non-empty, stdout empty', () => {
+  assertFailure(['render', '/nope.json', '/tmp/x.html'], /input\/read|nope\.json|ENOENT/);
 });
 
-test('render exits non-zero on malformed json', () => {
+test('render exits non-zero on malformed json, stderr non-empty, stdout empty', () => {
   const dir = mkdtempSync(join(tmpdir(), 'vs-'));
   const bad = join(dir, 'bad.json');
   writeFileSync(bad, '{ not json');
-  try {
-    execFileSync('node', [CLI, 'render', bad, join(dir, 'o.html')], { stdio: 'pipe' });
-    assert.fail('should have exited non-zero');
-  } catch (error) {
-    assert.notEqual(error.status, 0);
-    const stderr = error.stderr.toString();
-    assert.match(stderr, /input\/json-parse/);
-  }
+  assertFailure(['render', bad, join(dir, 'o.html')], /input\/json-parse/);
+});
+
+test('validate exits non-zero on a schema-invalid document, stderr non-empty, stdout empty', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'vs-'));
+  const doc = JSON.parse(readFileSync(FIXTURE, 'utf8'));
+  delete doc.claims[1].assumption.owner;
+  const bad = join(dir, 'noowner.json');
+  writeFileSync(bad, JSON.stringify(doc));
+  assertFailure(['validate', bad], /claim\/estimated-no-owner/);
 });
 
 test('rejects an unrecognised flag instead of treating it as a positional path', () => {
   const dir = mkdtempSync(join(tmpdir(), 'vs-'));
-  try {
-    execFileSync('node', [CLI, 'render', FIXTURE, '--output'], { stdio: 'pipe', cwd: dir });
-    assert.fail('should have exited non-zero');
-  } catch (error) {
-    assert.notEqual(error.status, 0);
-    const stderr = error.stderr.toString();
-    assert.match(stderr, /unrecognised argument: --output/);
-    // and it must not have written a file literally named --output
-    assert.equal(existsSync(join(dir, '--output')), false);
-  }
+  assertFailure(['render', FIXTURE, '--output'], /unrecognised argument: --output/, { cwd: dir });
+  // and it must not have written a file literally named --output
+  assert.equal(existsSync(join(dir, '--output')), false);
 });
 
 test('rejects a lone dash rather than treating it as a filename', () => {
-  try {
-    execFileSync('node', [CLI, 'render', '-'], { stdio: 'pipe' });
-    assert.fail('should have exited non-zero');
-  } catch (error) {
-    assert.notEqual(error.status, 0);
-    assert.match(error.stderr.toString(), /unrecognised argument: -$/m);
-  }
+  assertFailure(['render', '-'], /unrecognised argument: -$/m);
 });
 
 test('rejects a bare double dash rather than treating it as a filename', () => {
-  try {
-    execFileSync('node', [CLI, 'render', '--', 'x.html'], { stdio: 'pipe' });
-    assert.fail('should have exited non-zero');
-  } catch (error) {
-    assert.notEqual(error.status, 0);
-    assert.match(error.stderr.toString(), /unrecognised argument: --$/m);
-  }
+  assertFailure(['render', '--', 'x.html'], /unrecognised argument: --$/m);
 });
 
 test('rejects an unknown short flag', () => {
-  try {
-    execFileSync('node', [CLI, 'validate', FIXTURE, '-x'], { stdio: 'pipe' });
-    assert.fail('should have exited non-zero');
-  } catch (error) {
-    assert.notEqual(error.status, 0);
-    assert.match(error.stderr.toString(), /unrecognised argument: -x/);
+  assertFailure(['validate', FIXTURE, '-x'], /unrecognised argument: -x/);
+});
+
+test('rejects an unknown command, stderr non-empty, stdout empty', () => {
+  assertFailure(['frobnicate', 'x', 'y'], /unknown or incomplete command/);
+});
+
+test('rejects a missing positional argument, stderr non-empty, stdout empty', () => {
+  assertFailure(['render'], /unknown or incomplete command/);
+  assertFailure(['deliver', FIXTURE], /unknown or incomplete command/);
+});
+
+test('vs help exits zero, writes to stdout, and writes nothing to stderr', () => {
+  const result = spawnSync('node', [CLI, 'help'], { encoding: 'utf8' });
+  assert.equal(result.status, 0);
+  assert.ok(result.stdout.length > 0);
+  assert.equal(result.stderr.length, 0);
+});
+
+test('bare vs (no arguments) exits zero and is treated as a help request', () => {
+  const out = assertHelpSuccess([]);
+  assert.match(out, /vs help/);
+});
+
+test('vs help --json exits zero and emits valid JSON on stdout describing every command', () => {
+  const out = assertHelpSuccess(['help', '--json']);
+  const help = JSON.parse(out);
+  assert.equal(help.name, 'value-story');
+  const names = help.commands.map((c) => c.name);
+  for (const c of ['render', 'validate', 'deliver', 'schema', 'help']) {
+    assert.ok(names.includes(c));
   }
 });
 

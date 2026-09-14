@@ -69,7 +69,6 @@ export function semanticDiagnostics(doc) {
         subject: { pointer, ref },
         evidence: { knownRefs: [...evidenceRefs] },
         supportedFixes: [`set ${pointer} to a ref present in /evidence`],
-        suppresses: ['claim/measured-no-baseline'],
       });
     }
   };

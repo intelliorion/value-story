@@ -40,6 +40,10 @@ test('requires reporting an unsourceable chapter instead of padding it', () => {
   assert.ok(SKILL.includes('rather than filling it with prose the evidence does not carry'));
 });
 
+test('states that chapter prose numerals are not traced', () => {
+  assert.ok(SKILL.includes('does not check numerals written into chapter prose'));
+});
+
 test('states the stop condition and the exit-code rule', () => {
   assert.ok(SKILL.includes('new minimum'));
   assert.ok(SKILL.includes('two consecutive rounds'));

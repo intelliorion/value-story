@@ -83,6 +83,7 @@ Name a real person in `assumption.owner` — one the source actually names, neve
 - Preserve exact product names, metric names and units from the source.
 - Cite only sources you actually read.
 - If the sources do not support a chapter, say so plainly in your report rather than filling it with prose the evidence does not carry.
+- The tool traces numerals in claims and the hero only; it does not check numerals written into chapter prose (`headline` or `detail`). A figure that matters belongs in a `claim` with a tier and evidence, not in prose. A number left in prose carries no tier, no evidence and no check — if you write one, it must still be supported by that chapter's `evidence_refs`, and if it is load-bearing, make it a claim instead.
 
 ## Repair
 

@@ -27,12 +27,12 @@ export const DEFAULT_TOOLS = {
   },
   '.rtf': {
     bin: 'textutil',
-    args: (path) => ['-convert', 'txt', '-stdout', path],
+    args: (path) => ['-convert', 'txt', '-encoding', 'UTF-8', '-stdout', path],
     install: '`textutil` is built in on macOS; on other platforms, convert the file to .txt or .docx first.',
   },
   '.doc': {
     bin: 'textutil',
-    args: (path) => ['-convert', 'txt', '-stdout', path],
+    args: (path) => ['-convert', 'txt', '-encoding', 'UTF-8', '-stdout', path],
     install: '`textutil` is built in on macOS; on other platforms, convert the file to .txt or .docx first.',
   },
 };
@@ -73,7 +73,7 @@ export function findBinary(name, env = process.env) {
  * @param {string} path
  * @param {string} ext lowercase extension including the dot
  * @param {{tools?: object, env?: object, maxBuffer?: number}} [options]
- * @returns {{ok: true, text: string}|{ok: false, reason: string}}
+ * @returns {{ok: true, text: string, warnings: string[]}|{ok: false, reason: string}}
  */
 export function externalText(path, ext, { tools = DEFAULT_TOOLS, env = process.env, maxBuffer = 64 * 1024 * 1024 } = {}) {
   const tool = tools[ext];
@@ -94,7 +94,19 @@ export function externalText(path, ext, { tools = DEFAULT_TOOLS, env = process.e
       env,
       // No `shell` option: the argument array is passed to execve as-is.
     });
-    return { ok: true, text: Buffer.from(stdout).toString('utf8') };
+    // The converter's own output gets the same treatment as a source file:
+    // decoded strictly, and if that fails, decoded lossily WITH a warning.
+    // A converter that emits bytes we misread is no less wrong than a file.
+    const bytes = Buffer.from(stdout);
+    const warnings = [];
+    let text;
+    try {
+      text = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+    } catch {
+      text = bytes.toString('utf8');
+      warnings.push(`\`${tool.bin}\` did not return valid UTF-8. Its output was decoded lossily, so some characters are wrong or were replaced with U+FFFD.`);
+    }
+    return { ok: true, text, warnings };
   } catch (error) {
     const detail = error.status !== undefined && error.status !== null
       ? `exit ${error.status}`

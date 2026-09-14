@@ -180,6 +180,26 @@ if (command === 'ingest') {
     for (const s of skipped) process.stdout.write(`SKIP     ${s.path}\n  reason: ${s.reason}\n`);
     process.stdout.write(`${rows.length} document(s) read, ${skipped.length} skipped.\n`);
   }
+
+  // "I ingested nothing" must never look like success. A skip list on stdout
+  // is invisible to a caller that redirects stdout, so the shortfall is also
+  // announced on stderr -- and ingesting NOTHING when something was attempted
+  // is a failure of what was asked for, not a partial result.
+  //
+  // The manifest stays on stdout in both cases: it is the record of what was
+  // read, and a caller parsing --json still needs it to see WHY nothing came
+  // back. Nothing else is ever written to stdout on this path.
+  const attempted = documents.length + skipped.length;
+  if (attempted === 0) {
+    process.exit(0); // nothing was there to read; that is not a failure
+  }
+  if (documents.length === 0) {
+    process.stderr.write(`ingested NOTHING: all ${skipped.length} file(s) were skipped. See the reasons in the manifest; no document was read.\n`);
+    process.exit(1);
+  }
+  if (skipped.length > 0) {
+    process.stderr.write(`warning: ${skipped.length} of ${attempted} file(s) were skipped and NOT ingested. See the manifest for the reasons.\n`);
+  }
   process.exit(0);
 }
 

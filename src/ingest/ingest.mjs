@@ -107,7 +107,7 @@ export function ingestFile(path, options = {}) {
 
   try {
     if (TEXT_EXTENSIONS.includes(ext)) {
-      text = plainText(buffer);
+      text = plainText(buffer, warnings, path);
     } else if (ext === '.eml') {
       const message = emlDocument(buffer);
       text = message.text;
@@ -121,6 +121,7 @@ export function ingestFile(path, options = {}) {
       const result = externalText(path, ext, options);
       if (!result.ok) return skip(path, result.reason);
       text = result.text;
+      warnings.push(...(result.warnings ?? []));
     }
   } catch (error) {
     return skip(path, `${path} could not be read: ${error.message}`);

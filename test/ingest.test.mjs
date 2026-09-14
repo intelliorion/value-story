@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, readdirSync, existsSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -495,4 +495,298 @@ test('vs ingest skips an unreadable document without failing the run', () => {
   assert.equal(manifest.ok, true);
   assert.equal(manifest.documents.length, 1);
   assert.equal(manifest.skipped.length, 1);
+});
+
+// ---------------------------------------------------------------------------
+// text that is WRONG must never pass as text that is right
+// ---------------------------------------------------------------------------
+
+test('a .txt holding an invalid UTF-8 byte still returns text BUT warns that it is not valid UTF-8', () => {
+  const dir = tmp();
+  // 0xE9 is `é` in Windows-1252 — the commonest artifact of an Excel or Word
+  // export, and invalid UTF-8. Buffer.toString would rewrite it as U+FFFD and
+  // say nothing.
+  const bytes = Buffer.concat([Buffer.from('Price: caf', 'utf8'), Buffer.from([0xe9]), Buffer.from(' today.\n', 'utf8')]);
+  const doc = ingestFile(write(dir, 'export.txt', bytes));
+  assert.equal(doc.skipped, undefined);
+  assert.ok(doc.text.length > 0);
+  assert.equal(doc.warnings.length, 1);
+  assert.match(doc.warnings[0], /not valid UTF-8/i);
+  assert.match(doc.warnings[0], /export\.txt/);
+});
+
+test('valid multibyte UTF-8 does NOT trip the invalid-UTF-8 warning', () => {
+  const dir = tmp();
+  const doc = ingestFile(write(dir, 'clean.txt', 'Cycle time — 9 days. 日本語 café 🙂\n'));
+  assert.deepEqual(doc.warnings, []);
+  assert.match(doc.text, /Cycle time — 9 days\. 日本語 café 🙂/);
+});
+
+test('a .csv holding an invalid UTF-8 byte warns too — every plain format runs the same guard', () => {
+  const dir = tmp();
+  const bytes = Buffer.concat([Buffer.from('week,note\n1,caf', 'utf8'), Buffer.from([0xe9]), Buffer.from('\n', 'utf8')]);
+  const doc = ingestFile(write(dir, 'rows.csv', bytes));
+  assert.equal(doc.kind, 'dataset');
+  assert.equal(doc.warnings.length, 1);
+  assert.match(doc.warnings[0], /not valid UTF-8/i);
+});
+
+test('an .eml declaring a charset this runtime cannot decode warns and names the label', () => {
+  const dir = tmp();
+  const eml = crlf([
+    'From: a@example.com',
+    'Date: Wed, 10 Sep 2025 08:00:00 +0000',
+    'Subject: Legacy mail',
+    'Content-Type: text/plain; charset="x-mac-japanese"',
+    '',
+    'body text',
+    '',
+  ].join('\n'));
+  const doc = ingestFile(write(dir, 'legacy.eml', eml));
+  assert.ok(doc.warnings.some((w) => /x-mac-japanese/.test(w)), `expected a warning naming the label, got ${JSON.stringify(doc.warnings)}`);
+});
+
+test('an .eml in a KNOWN non-UTF-8 charset decodes correctly and warns about nothing', () => {
+  const dir = tmp();
+  const head = Buffer.from(crlf([
+    'From: a@example.com',
+    'Date: Wed, 10 Sep 2025 08:00:00 +0000',
+    'Subject: Shift JIS',
+    'Content-Type: text/plain; charset="shift_jis"',
+    '',
+    '',
+  ].join('\n')), 'utf8');
+  // カフェ in Shift_JIS
+  const body = Buffer.from([0x83, 0x4a, 0x83, 0x74, 0x83, 0x46]);
+  const doc = ingestFile(write(dir, 'sjis.eml', Buffer.concat([head, body, Buffer.from('\r\n')])));
+  assert.match(doc.text, /カフェ/);
+  assert.deepEqual(doc.warnings, []);
+});
+
+test('an .eml in iso-8859-1 decodes correctly and warns about nothing', () => {
+  const dir = tmp();
+  const head = Buffer.from(crlf([
+    'From: a@example.com',
+    'Date: Wed, 10 Sep 2025 08:00:00 +0000',
+    'Subject: Latin 1',
+    'Content-Type: text/plain; charset="iso-8859-1"',
+    '',
+    '',
+  ].join('\n')), 'utf8');
+  const doc = ingestFile(write(dir, 'latin.eml', Buffer.concat([head, Buffer.from([0x63, 0x61, 0x66, 0xe9]), Buffer.from('\r\n')])));
+  assert.match(doc.text, /café/);
+  assert.deepEqual(doc.warnings, []);
+});
+
+test('an .eml carrying attachments warns, naming how many were NOT extracted', () => {
+  const dir = tmp();
+  const eml = crlf([
+    'From: a@example.com',
+    'Date: Wed, 10 Sep 2025 08:00:00 +0000',
+    'Subject: With attachments',
+    'Content-Type: multipart/mixed; boundary="B"',
+    '',
+    '--B',
+    'Content-Type: text/plain; charset=utf-8',
+    '',
+    'See the two attached files.',
+    '',
+    '--B',
+    'Content-Type: application/pdf; name="board.pdf"',
+    'Content-Transfer-Encoding: base64',
+    '',
+    'JVBERi0xLjQK',
+    '',
+    '--B',
+    'Content-Type: application/vnd.openxmlformats-officedocument.wordprocessingml.document; name="r.docx"',
+    'Content-Transfer-Encoding: base64',
+    '',
+    'UEsDBAo=',
+    '',
+    '--B--',
+    '',
+  ].join('\n'));
+  const doc = ingestFile(write(dir, 'attached.eml', eml));
+  assert.match(doc.text, /See the two attached files\./);
+  assert.ok(doc.warnings.some((w) => /2 attachment/.test(w)), `expected an attachment count warning, got ${JSON.stringify(doc.warnings)}`);
+});
+
+test('an .eml with headers but no body says so, so "empty" is distinguishable from "dropped"', () => {
+  const dir = tmp();
+  const eml = crlf([
+    'From: a@example.com',
+    'Date: Wed, 10 Sep 2025 08:00:00 +0000',
+    'Subject: Nothing to say',
+    '',
+    '',
+  ].join('\n'));
+  const doc = ingestFile(write(dir, 'nobody.eml', eml));
+  assert.ok(doc.warnings.some((w) => /no body/i.test(w)), `expected a no-body warning, got ${JSON.stringify(doc.warnings)}`);
+});
+
+// ---------------------------------------------------------------------------
+// ingesting nothing must not look like success
+// ---------------------------------------------------------------------------
+
+function run(args) {
+  return spawnSync('node', [CLI, ...args], { encoding: 'utf8' });
+}
+
+test('a folder of only unsupported files exits NON-ZERO with a stderr message, manifest still on stdout', () => {
+  const src = tmp();
+  const out = join(tmp(), 'out');
+  write(src, 'logo.png', Buffer.from([0x89]));
+  write(src, 'sheet.xlsx', 'nope');
+
+  const result = run(['ingest', src, '--out', out, '--json']);
+  assert.notEqual(result.status, 0, 'ingesting nothing must not exit zero');
+  assert.match(result.stderr, /NOTHING/);
+  // The manifest is the record of WHY nothing came back, so it stays on stdout.
+  const manifest = JSON.parse(result.stdout);
+  assert.equal(manifest.documents.length, 0);
+  assert.equal(manifest.skipped.length, 2);
+});
+
+test('one readable file among unsupported ones exits zero BUT warns on stderr about the shortfall', () => {
+  const src = tmp();
+  const out = join(tmp(), 'out');
+  write(src, 'good.txt', 'readable');
+  write(src, 'logo.png', Buffer.from([0x89]));
+
+  const result = run(['ingest', src, '--out', out, '--json']);
+  assert.equal(result.status, 0);
+  assert.match(result.stderr, /1 of 2 file\(s\) were skipped/);
+  assert.equal(JSON.parse(result.stdout).documents.length, 1);
+});
+
+test('everything read means a silent stderr — the warning is a signal, not noise', () => {
+  const src = tmp();
+  const out = join(tmp(), 'out');
+  write(src, 'good.txt', 'readable');
+  const result = run(['ingest', src, '--out', out, '--json']);
+  assert.equal(result.status, 0);
+  assert.equal(result.stderr, '');
+});
+
+test('an empty directory is not a failure — nothing was attempted', () => {
+  const src = tmp();
+  const out = join(tmp(), 'out');
+  const result = run(['ingest', src, '--out', out, '--json']);
+  assert.equal(result.status, 0);
+  assert.equal(JSON.parse(result.stdout).documents.length, 0);
+});
+
+test('a document warning reaches stdout in human mode and the JSON manifest in --json mode', () => {
+  const src = tmp();
+  const out = join(tmp(), 'out');
+  const bytes = Buffer.concat([Buffer.from('caf', 'utf8'), Buffer.from([0xe9])]);
+  write(src, 'export.txt', bytes);
+
+  const human = run(['ingest', src, '--out', out]);
+  assert.equal(human.status, 0);
+  assert.match(human.stdout, /warning: .*not valid UTF-8/i);
+
+  const json = JSON.parse(run(['ingest', src, '--out', out, '--json']).stdout);
+  assert.match(json.documents[0].warnings[0], /not valid UTF-8/i);
+});
+
+test('a raw UTF-8 Subject (RFC 6532) is read as UTF-8, not mangled through latin1', () => {
+  const dir = tmp();
+  const eml = Buffer.concat([
+    Buffer.from(crlf('From: a@example.com\nDate: Wed, 10 Sep 2025 08:00:00 +0000\nSubject: '), 'utf8'),
+    Buffer.from('Café résultats', 'utf8'),
+    Buffer.from(crlf('\n\nbody\n'), 'utf8'),
+  ]);
+  const doc = ingestFile(write(dir, 'raw8bit.eml', eml));
+  assert.equal(doc.title, 'Café résultats');
+  assert.doesNotMatch(doc.title, /Ã/);
+  assert.deepEqual(doc.warnings, []);
+});
+
+test('a header carrying 8-bit bytes that are not UTF-8 is read as latin1 WITH a warning', () => {
+  const dir = tmp();
+  const eml = Buffer.concat([
+    Buffer.from(crlf('From: a@example.com\nDate: Wed, 10 Sep 2025 08:00:00 +0000\nSubject: caf'), 'utf8'),
+    Buffer.from([0xe9]), // lone latin1 byte: not valid UTF-8
+    Buffer.from(crlf('\n\nbody\n'), 'utf8'),
+  ]);
+  const doc = ingestFile(write(dir, 'latin-header.eml', eml));
+  assert.match(doc.text, /Subject: café/);
+  assert.ok(doc.warnings.some((w) => /8-bit/.test(w)), `expected an 8-bit header warning, got ${JSON.stringify(doc.warnings)}`);
+});
+
+test('an external converter that returns invalid UTF-8 warns rather than replacing bytes in silence', () => {
+  const dir = tmp();
+  const path = write(dir, 'x.pdf', 'x');
+  const tools = {
+    '.pdf': {
+      bin: process.execPath,
+      args: () => ['-e', 'process.stdout.write(Buffer.from([0x63, 0x61, 0x66, 0xe9]))'],
+      install: 'n/a',
+    },
+  };
+  const doc = ingestFile(path, { tools });
+  assert.equal(doc.skipped, undefined);
+  assert.ok(doc.text.length > 0);
+  assert.ok(doc.warnings.some((w) => /valid UTF-8/i.test(w)), `expected a converter encoding warning, got ${JSON.stringify(doc.warnings)}`);
+});
+
+test('a well-behaved external converter contributes no warnings', () => {
+  const dir = tmp();
+  const path = write(dir, 'y.pdf', 'x');
+  const tools = {
+    '.pdf': { bin: process.execPath, args: () => ['-e', 'process.stdout.write("Cycle time — 9 days.")'], install: 'n/a' },
+  };
+  const doc = ingestFile(path, { tools });
+  assert.equal(doc.text, 'Cycle time — 9 days.');
+  assert.deepEqual(doc.warnings, []);
+});
+
+test('a base64 body containing characters outside the alphabet warns instead of quietly dropping them', () => {
+  const dir = tmp();
+  const eml = crlf([
+    'From: a@example.com',
+    'Date: Wed, 10 Sep 2025 08:00:00 +0000',
+    'Subject: Corrupt base64',
+    'Content-Type: text/plain; charset=utf-8',
+    'Content-Transfer-Encoding: base64',
+    '',
+    `${Buffer.from('Savings were 400k.', 'utf8').toString('base64')}!!!*`,
+    '',
+  ].join('\n'));
+  const doc = ingestFile(write(dir, 'b64bad.eml', eml));
+  assert.ok(doc.warnings.some((w) => /base64 alphabet/.test(w)), `expected a base64 warning, got ${JSON.stringify(doc.warnings)}`);
+});
+
+test('a clean base64 body warns about nothing', () => {
+  const dir = tmp();
+  const eml = crlf([
+    'From: a@example.com',
+    'Date: Wed, 10 Sep 2025 08:00:00 +0000',
+    'Subject: Clean base64',
+    'Content-Type: text/plain; charset=utf-8',
+    'Content-Transfer-Encoding: base64',
+    '',
+    Buffer.from('Savings were 400k.', 'utf8').toString('base64'),
+    '',
+  ].join('\n'));
+  const doc = ingestFile(write(dir, 'b64ok.eml', eml));
+  assert.match(doc.text, /Savings were 400k\./);
+  assert.deepEqual(doc.warnings, []);
+});
+
+test('an unsupported transfer encoding is announced, not absorbed', () => {
+  const dir = tmp();
+  const eml = crlf([
+    'From: a@example.com',
+    'Date: Wed, 10 Sep 2025 08:00:00 +0000',
+    'Subject: Odd encoding',
+    'Content-Type: text/plain; charset=utf-8',
+    'Content-Transfer-Encoding: uuencode',
+    '',
+    'begin 644 x',
+    '',
+  ].join('\n'));
+  const doc = ingestFile(write(dir, 'uu.eml', eml));
+  assert.ok(doc.warnings.some((w) => /uuencode/.test(w)), `expected a transfer-encoding warning, got ${JSON.stringify(doc.warnings)}`);
 });

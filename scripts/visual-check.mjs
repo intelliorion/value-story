@@ -71,6 +71,13 @@ export const CONTRAST_LARGE = 3;
 const MAX_REPORTED = 5;
 
 /**
+ * How many text-bearing elements are measured per viewport. Every other cap in
+ * this file discloses what it withheld; this one is disclosed in
+ * `summary.measured.textElements` for the same reason.
+ */
+const TEXT_NODE_CAP = 600;
+
+/**
  * Entry animations move and fade the very elements the fold and contrast checks
  * measure. Measuring mid-flight would report a transient position as a defect,
  * so the page is allowed to settle first — bounded, because a looping animation
@@ -216,10 +223,11 @@ function foldRepair(hero) {
  * without saying WHAT is not actionable, so every measurement names its
  * element.
  *
- * @param {{heroSelector: string, aboveFold: boolean, maxReported: number}} opts
+ * @param {{heroSelector: string, aboveFold: boolean, maxReported: number,
+ *           textNodeCap: number}} opts
  */
 function measure(opts) {
-  const { heroSelector, aboveFold, maxReported } = opts;
+  const { heroSelector, aboveFold, maxReported, textNodeCap: TEXT_NODE_CAP } = opts;
 
   const selectorFor = (el) => {
     const parts = [];
@@ -483,7 +491,12 @@ function measure(opts) {
     return product;
   };
 
+  // Every other cap in this file discloses reported/total/truncated. This one
+  // silently stopped at 600, so a page with 900 text elements reported on 600
+  // and said nothing about the other 300. `textElementsTotal` counts every
+  // candidate; `textElements` is how many were measured.
   const textNodes = [];
+  let textElementsTotal = 0;
   for (const el of document.querySelectorAll('body, body *')) {
     if (SKIP_TAGS.has(el.tagName ? String(el.tagName).toUpperCase() : '')) continue;
     if (!hasOwnText(el)) continue;
@@ -491,17 +504,23 @@ function measure(opts) {
     if (cs.visibility !== 'visible' || cs.display === 'none') continue;
     const rects = rectsOf(el);
     if (!rects.length) continue;
-    textNodes.push({ el, cs, rects });
-    if (textNodes.length >= 600) break;
+    textElementsTotal += 1;
+    if (textNodes.length < TEXT_NODE_CAP) textNodes.push({ el, cs, rects });
   }
 
   // --- contrast ------------------------------------------------------------
   const contrastFailures = [];
   const contrastSkipped = [];
+  const SKIP_CAP = 20;
+  // Counted before the cap. A skip is a measurement that did NOT happen, and
+  // reporting twenty of them while withholding the rest without saying so is
+  // the same silent truncation the findings array is not allowed.
+  let contrastSkippedTotal = 0;
   for (const { el, cs, rects } of textNodes) {
     const selector = selectorFor(el);
     const note = (reason) => {
-      if (contrastSkipped.length < 20) contrastSkipped.push({ selector, reason });
+      contrastSkippedTotal += 1;
+      if (contrastSkipped.length < SKIP_CAP) contrastSkipped.push({ selector, reason });
     };
 
     if (cs.backgroundClip === 'text' || cs.webkitBackgroundClip === 'text') {
@@ -520,7 +539,14 @@ function measure(opts) {
       continue;
     }
 
-    const bg = resolveBackground(el.parentElement || el);
+    // THE ELEMENT ITSELF, not its parent. An element paints its own background
+    // behind its own text, so starting at the parent measured white-on-white
+    // against `body` and reported 21:1 with no finding and no skip -- and an
+    // element carrying its own unresolvable gradient was measured against an
+    // ancestor it never sits on, producing a fabricated ratio labelled
+    // "resolved from body". `resolveBackground` walks upward from here, so a
+    // transparent element still inherits whatever is behind it.
+    const bg = resolveBackground(el);
     if (bg.kind === 'unparseable') {
       note(`the background colour could not be read (${bg.value})`);
       continue;
@@ -666,6 +692,9 @@ function measure(opts) {
     scrollHeight: root.scrollHeight,
     offenders: offenders.slice(0, 3),
     textElements: textNodes.length,
+    textElementsTotal,
+    textElementsTruncated: Math.max(0, textElementsTotal - textNodes.length),
+    textElementCap: TEXT_NODE_CAP,
     // The cap is deliberate; reporting the CAPPED count as though it were the
     // whole count is not. `total` travels with every truncated payload so a
     // consumer reading the array alone cannot mistake five for all there is.
@@ -674,7 +703,15 @@ function measure(opts) {
       reported: Math.min(contrastFailures.length, maxReported),
       total: contrastFailures.length,
       truncated: Math.max(0, contrastFailures.length - maxReported),
+      // Skips, disclosed the same way findings are: what is listed, against
+      // how many there were. "Nothing measured wrong" and "nothing was
+      // measured" must never read the same.
       skipped: contrastSkipped,
+      skippedReported: contrastSkipped.length,
+      skippedTotal: contrastSkippedTotal,
+      skippedTruncated: Math.max(0, contrastSkippedTotal - contrastSkipped.length),
+      skippedCap: SKIP_CAP,
+      measured: textNodes.length - contrastSkippedTotal,
     },
     collisions: {
       pairs: collisions.slice(0, maxReported),
@@ -750,6 +787,18 @@ export async function visualCheck(htmlPath, options = {}) {
   // what survived the per-viewport cap. The gap between them is the whole
   // point of this tally.
   const tally = new Map();
+  // Skips are measurements that did NOT happen. Counted across every viewport
+  // and reported in `summary`, because a page whose only text sits on an
+  // unresolvable background otherwise prints "no horizontal overflow" and
+  // exits 0 with `{reported:0,total:0}` — "nothing was measured" wearing the
+  // face of "nothing measured wrong".
+  const skips = {
+    textElements: { measured: 0, total: 0, truncated: 0 },
+    contrast: {
+      measured: 0, skipped: 0, total: 0, listed: 0,
+    },
+  };
+  const skipReasons = new Map();
   const count = (code, reported, total) => {
     const row = tally.get(code) || { reported: 0, total: 0 };
     row.reported += reported;
@@ -771,9 +820,21 @@ export async function visualCheck(htmlPath, options = {}) {
           heroSelector: HERO_SELECTOR,
           aboveFold: true,
           maxReported: MAX_REPORTED,
+          textNodeCap: TEXT_NODE_CAP,
         });
         const label = `${viewport.width}x${viewport.height}`;
         measurements.push({ viewport: label, ...m });
+
+        skips.textElements.measured += m.textElements;
+        skips.textElements.total += m.textElementsTotal;
+        skips.textElements.truncated += m.textElementsTruncated;
+        skips.contrast.total += m.textElements;
+        skips.contrast.skipped += m.contrast.skippedTotal;
+        skips.contrast.measured += m.contrast.measured;
+        skips.contrast.listed += m.contrast.skippedReported;
+        for (const entry of m.contrast.skipped) {
+          skipReasons.set(entry.reason, (skipReasons.get(entry.reason) || 0) + 1);
+        }
 
         // Carried into EVERY finding of a capped family, so a reader who sees
         // one finding still sees how many there were.
@@ -934,6 +995,27 @@ export async function visualCheck(htmlPath, options = {}) {
     truncated: total - findings.length,
     cap: MAX_REPORTED,
     byCode,
+    // What was MEASURED, as against what was there to measure. `byCode` says
+    // how many findings there were; this says how much of the page they were
+    // found in. Both are needed to read a zero honestly.
+    measured: {
+      textElements: {
+        reported: skips.textElements.measured,
+        total: skips.textElements.total,
+        truncated: skips.textElements.truncated,
+        cap: skips.textElements.total > 0 ? TEXT_NODE_CAP : 0,
+      },
+      contrast: {
+        reported: skips.contrast.measured,
+        total: skips.contrast.total,
+        skipped: skips.contrast.skipped,
+        // The skip LIST is itself capped; `skipped` is the real count.
+        listed: skips.contrast.listed,
+        reasons: [...skipReasons.entries()]
+          .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+          .map(([reason, n]) => ({ reason, count: n })),
+      },
+    },
   };
 
   return {

@@ -289,6 +289,125 @@ test('contrast: the background is resolved by walking ancestors, not assumed to 
   assert.match(onBand.evidence.backgroundSelector, /band/);
 });
 
+// THE ELEMENT'S OWN BACKGROUND.
+//
+// Every fixture above puts the background on an ANCESTOR, which is why three
+// review passes missed that the walk started at `el.parentElement`. These two
+// put it on the text element itself:
+//
+//  - `.own-white` is white text on its own white card. Measured from the
+//    parent it resolved to `body` (#0A0B0D) and computed 21:1 -- a clean pass,
+//    no finding, and no skip either.
+//  - `.own-conic` carries a conic-gradient this check cannot map. Measured
+//    from the parent it was not skipped at all: it was compared against an
+//    ancestor it never sits on, and the finding said "resolved from body" --
+//    a fabricated measurement presented as a real one.
+const OWN_BACKGROUND = write('own-background.html', `<!doctype html><meta charset="utf-8"><title>own background</title>
+<style>*{margin:0;padding:0}body{background:#0A0B0D;color:#F4F5F7;font:16px/1.5 system-ui}
+p{margin:0 0 24px}
+.own-white{background:#FFFFFF;color:#FFFFFF;padding:16px}
+.own-conic{background:conic-gradient(#000000,#FFFFFF);padding:16px}
+.own-dark{background:#0A0B0D;color:#F4F5F7;padding:16px}
+</style>
+<p class="own-white">White text on its own white card.</p>
+<p class="own-conic">Text on its own conic gradient.</p>
+<p class="own-dark">Readable text on its own dark card.</p>`);
+
+test('contrast: white text on the element’s OWN white background is a finding', async () => {
+  const result = await visualCheck(OWN_BACKGROUND, { browser: shared, viewports: SMALL });
+  const finding = result.findings.find((f) => f.code === 'layout/contrast' && /own-white/.test(f.subject.selector));
+  assert.ok(finding, `expected a finding for .own-white, got ${JSON.stringify(result.findings.map((f) => f.subject.selector))}`);
+  // 1:1, not the 21:1 that resolving to `body` produced.
+  assert.ok(finding.evidence.ratio < 1.05, `ratio was ${finding.evidence.ratio}`);
+  assert.equal(finding.evidence.backgroundKind, 'color');
+  assert.match(finding.evidence.backgroundSelector, /own-white/);
+});
+
+test('contrast: an element’s OWN unresolvable gradient is SKIPPED with a reason, never measured against an ancestor', async () => {
+  const result = await visualCheck(OWN_BACKGROUND, { browser: shared, viewports: SMALL });
+  const measured = result.findings.filter((f) => f.code === 'layout/contrast' && /own-conic/.test(f.subject.selector));
+  assert.deepEqual(measured, [],
+    'a background this check cannot map must never be replaced by an ancestor\'s colour');
+
+  const skipped = result.viewports[0].contrast.skipped.filter((sk) => /own-conic/.test(sk.selector));
+  assert.equal(skipped.length, 1, JSON.stringify(result.viewports[0].contrast.skipped, null, 2));
+  assert.match(skipped[0].reason, /background is an image this check does not resolve/);
+});
+
+test('contrast: an element with its own readable background still passes', async () => {
+  const result = await visualCheck(OWN_BACKGROUND, { browser: shared, viewports: SMALL });
+  const dark = result.findings.filter((f) => f.code === 'layout/contrast' && /own-dark/.test(f.subject.selector));
+  assert.deepEqual(dark, [], 'an element whose own background is readable must not become a false positive');
+});
+
+// --- Fix 6/7: skips and caps are disclosed, never silent -------------------
+
+// A page whose ONLY text sits on an unresolvable background. Before this, it
+// printed "no horizontal overflow at 3 viewport(s)", exited 0, and reported
+// summary {reported:0,total:0,truncated:0} -- "nothing was measured" wearing
+// the face of "nothing measured wrong".
+const ALL_SKIPPED = write('all-skipped.html', `<!doctype html><meta charset="utf-8"><title>all skipped</title>
+<style>*{margin:0;padding:0}body{background:#0A0B0D;font:16px/1.5 system-ui}
+.only{background:conic-gradient(#000000,#FFFFFF);color:#FFFFFF;padding:16px}</style>
+<p class="only">The only text on this page.</p>`);
+
+test('a page where NOTHING could be measured says so in summary, and is not a silent pass', async () => {
+  const result = await visualCheck(ALL_SKIPPED, { browser: shared, viewports: SMALL });
+  assert.equal(result.ok, true, 'no finding fired, which is true and is not the whole truth');
+  assert.equal(result.summary.reported, 0);
+
+  const contrast = result.summary.measured.contrast;
+  assert.equal(contrast.reported, 0, 'nothing was measured for contrast');
+  assert.ok(contrast.total > 0, 'but there WAS text to measure');
+  assert.equal(contrast.skipped, contrast.total);
+  assert.ok(contrast.reasons.length > 0);
+  assert.match(contrast.reasons[0].reason, /background is an image/);
+});
+
+test('the human path surfaces the skips in the same "reported of total" idiom', () => {
+  const stdout = execFileSync('node', [CLI, 'visual-check', ALL_SKIPPED], { stdio: 'pipe', encoding: 'utf8' });
+  assert.match(stdout, /contrast: 0 of \d+ text element\(s\) measured, \d+ skipped\./);
+  assert.match(stdout, /skipped because .*background is an image/);
+});
+
+test('a page where everything WAS measured says so too', async () => {
+  const result = await visualCheck(CONTRAST_PASS, { browser: shared, viewports: SMALL });
+  const contrast = result.summary.measured.contrast;
+  assert.ok(contrast.total > 0);
+  assert.equal(contrast.skipped, 0);
+  assert.equal(contrast.reported, contrast.total);
+  // And the text-element cap discloses itself the same way every other cap does.
+  const text = result.summary.measured.textElements;
+  assert.equal(text.reported, text.total);
+  assert.equal(text.truncated, 0);
+});
+
+test('the text-element cap discloses what it withheld rather than stopping silently', async () => {
+  const many = write('many-text.html', `<!doctype html><meta charset="utf-8"><title>many text</title>
+<style>*{margin:0;padding:0}body{background:#0A0B0D;color:#F4F5F7;font:16px/1.5 system-ui}
+p{margin:0}</style>
+${Array.from({ length: 650 }, (_, i) => `<p class="t">line ${i}</p>`).join('\n')}`);
+  const result = await visualCheck(many, { browser: shared, viewports: SMALL });
+  const text = result.summary.measured.textElements;
+  assert.equal(text.reported, 600, 'the cap itself is unchanged');
+  assert.ok(text.total >= 650, `total was ${text.total}`);
+  assert.equal(text.truncated, text.total - text.reported);
+  assert.ok(text.truncated > 0, 'this fixture must actually exceed the cap');
+});
+
+test('the contrast SKIP list is capped, and the cap is disclosed', async () => {
+  const many = write('many-skips.html', `<!doctype html><meta charset="utf-8"><title>many skips</title>
+<style>*{margin:0;padding:0}body{background:#0A0B0D;font:16px/1.5 system-ui}
+p{background:conic-gradient(#000000,#FFFFFF);color:#FFFFFF;margin:0}</style>
+${Array.from({ length: 30 }, (_, i) => `<p class="s">line ${i}</p>`).join('\n')}`);
+  const result = await visualCheck(many, { browser: shared, viewports: SMALL });
+  const contrast = result.summary.measured.contrast;
+  assert.equal(contrast.skipped, 30);
+  assert.equal(contrast.listed, 20, 'the skip list cap itself is unchanged');
+  assert.equal(result.viewports[0].contrast.skippedTotal, 30);
+  assert.equal(result.viewports[0].contrast.skippedTruncated, 10);
+});
+
 test('contrast: an element with no rendered text is never a finding', async () => {
   const result = await visualCheck(CONTRAST_FAIL, { browser: shared, viewports: SMALL });
   const empty = result.findings.filter((f) => /\.empty/.test(f.subject.selector || ''));

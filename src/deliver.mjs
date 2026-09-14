@@ -33,10 +33,14 @@ function outputWriteDiagnostic(error, outputPath) {
  * @param {string} outputPath where the artifact is committed
  * @param {{manifest?: object}} [options] an evidence manifest from `readManifest`
  *
- * The receipt carries `citationsVerified`. It is TRUE only when a manifest was
- * supplied and every citation was checked against it; with no manifest it is
- * FALSE, because the tool performed no such verification and must not imply
- * one. A hand-authored case still delivers -- it just delivers unverified, and
+ * The receipt carries `citationsVerified`. It is `Boolean(options.manifest)`
+ * and nothing more: TRUE means a manifest was supplied, so the citation check
+ * RAN; FALSE means none was, so nothing was checked and the tool must not
+ * imply otherwise. It does NOT mean every citation passed -- a delivery only
+ * happens when validation succeeded, but the field is set before validation
+ * and rides the failure receipt too, where citations demonstrably did not all
+ * check out. Read it as "citations were checked", not "citations are good".
+ * A hand-authored case still delivers -- it just delivers unverified, and
  * says so.
  */
 export function deliverCase(doc, outputPath, options = {}) {
@@ -74,6 +78,11 @@ export function deliverCase(doc, outputPath, options = {}) {
     specSha256: sha256(spec),
     artifactSha256: sha256(html),
     bytes: { spec: Buffer.byteLength(spec), artifact: Buffer.byteLength(html) },
-    diagnostics: [],
+    // `validateCase` returns ok:true with WARNING-severity diagnostics still
+    // standing -- a cited source whose file has moved, or whose extraction
+    // recorded a decode warning. Returning a hardcoded empty array threw those
+    // away at the last step, which is how six decode guards ended up with no
+    // consumer: every one of them reached the manifest and died here.
+    diagnostics: result.diagnostics,
   };
 }

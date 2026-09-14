@@ -151,3 +151,45 @@ test('sends a contrast repair to the token file, not to the element', () => {
   assert.ok(SKILL.includes('src/render/tokens.mjs'));
   assert.ok(SKILL.includes('not a per-element override'));
 });
+
+// ---------------------------------------------------------------------------
+// Who each gate is addressed to (M2/M3 final fix wave).
+//
+// `visual-check` fails on the tool's own artifacts over a palette defect whose
+// only repair points at `src/render/tokens.mjs` -- a file this contract
+// forbids the authoring agent to read. That made the documented happy path
+// unpassable and its only repair prohibited. The resolution is not to change
+// the palette but to say honestly whose finding a `layout/*` finding is.
+// ---------------------------------------------------------------------------
+
+test('separates the author\'s gate on the document from the maintainer\'s gate on the rendering', () => {
+  assert.ok(SKILL.includes("`validate` and `deliver` are the AUTHOR's gate on the document."));
+  assert.ok(SKILL.includes("`visual-check` is a MAINTAINER's gate on the rendering"));
+});
+
+test('forbids the authoring agent from repairing a layout finding or bending the case around one', () => {
+  assert.ok(onOneLine('A `layout/*` finding names a CSS selector and a file under `src/render/`, which you are forbidden to read or edit.'));
+  assert.ok(SKILL.includes('**It is not yours to'));
+  assert.ok(SKILL.includes('repair, and it is never a reason to alter the value case.**'));
+  assert.ok(SKILL.includes('report'));
+  assert.ok(SKILL.includes('the findings verbatim as a renderer defect'));
+});
+
+test('scopes the JSON-Pointer promise to document-level diagnostics', () => {
+  assert.ok(SKILL.includes('For a document-level diagnostic'));
+  assert.ok(SKILL.includes('each fix names a JSON Pointer into your document'));
+  assert.ok(SKILL.includes('`layout/*` is the exception and is not yours'));
+});
+
+test('tells the agent to verify a warned source against the original before quoting it', () => {
+  assert.ok(onOneLine('a warned source must be verified against the original before its text is quoted'));
+  assert.ok(SKILL.includes('evidence/source-warning'));
+});
+
+test('states that every capability is reachable from the command line', () => {
+  assert.ok(onOneLine('Every capability is reachable from the command line; nothing depends on a particular agent harness.'));
+});
+
+test('still points a contrast repair at the token file, and says whose edit it is', () => {
+  assert.ok(SKILL.includes("Both are the maintainer's edits, not the author's."));
+});

@@ -10,6 +10,7 @@ Create a self-contained HTML value narrative from a small typed JSON specificati
 The audience is leadership. They want business outcomes, not technology.
 
 Run `node bin/vs.mjs help --json` to discover every command and the receipt format.
+Every capability is reachable from the command line; nothing depends on a particular agent harness.
 
 ## What leadership asks
 
@@ -31,6 +32,7 @@ node bin/vs.mjs ingest <sources> --out <dir> --json
 
 Extracts readable text into `<dir>`, one file per document, plus `<dir>/evidence-manifest.json` — the record of what was read.
 Read that text before authoring anything. A skipped file is absent from the manifest because it was never read; do not cite it.
+A manifest row carrying `warnings` decoded with a caveat, and `validate` reports `evidence/source-warning` when you cite it: a warned source must be verified against the original before its text is quoted.
 
 ## Fast authoring path
 
@@ -87,7 +89,7 @@ Most source records are early-stage: a rubric score, an assumed rating, an unqua
 
 ## Repair
 
-On failure, change only the diagnosed `subject`, verify `evidence`, and apply one fix from `supportedFixes` — each names a JSON Pointer into your document.
+On failure, change only the diagnosed `subject`, verify `evidence`, and apply one fix from `supportedFixes`. For a document-level diagnostic — every `arc/`, `claim/`, `driver/`, `evidence/`, `render/` and `schema/` code — each fix names a JSON Pointer into your document. `layout/*` is the exception and is not yours: see The gate.
 Make one structural change per round. Continue while the error count reaches a **new minimum**; if **two consecutive rounds** do not improve the best count,
 stop and report the unresolved diagnostics truthfully.
 
@@ -107,35 +109,35 @@ Each of these passes validation by destroying the credibility the artifact exist
 
 Report the artifact path, the validation summary, and the specification and artifact hashes from the delivery receipt.
 
-## The gate
+## The gate — the renderer's, not yours
 
 ```bash
 node bin/vs.mjs visual-check <out.html> --json
 ```
 
-Measures the DELIVERED artifact in a real browser at three desk sizes: horizontal overflow, WCAG contrast, text collision,
-and the hero delta above the fold. Scrolling down is never a finding. Repair its `layout/…` findings like any other.
+`validate` and `deliver` are the AUTHOR's gate on the document. `visual-check` is a MAINTAINER's gate on the rendering: it measures
+the DELIVERED artifact in a real browser at three desk sizes — horizontal overflow, WCAG contrast, text collision, and the hero delta above the fold. Scrolling down is never a finding.
 
-Overflow repairs are graduated on the measured pixels, and each band says what NOT to do:
+A `layout/*` finding names a CSS selector and a file under `src/render/`, which you are forbidden to read or edit. **It is not yours to
+repair, and it is never a reason to alter the value case.** A non-zero exit here is still not success — but the honest completion is to report
+the findings verbatim as a renderer defect, never to change the document until they stop firing. The bands below address the renderer's maintainer:
 
 - **≤ 40px over** — tighten one gap or padding by 20-40px; do not remove content.
 - **41-200px over** — move a supporting element to the next chapter; do not shrink the hero numeral.
 - **over 200px** — the layout is wrong for this content: report it rather than compressing it.
 
-Contrast is a token change in `src/render/tokens.mjs` — not a per-element override. The palette is centralised, so an
-override patches one instance and leaves the defect in place.
+Contrast is a token change in `src/render/tokens.mjs` — not a per-element override: the palette is centralised, so an override patches one instance and leaves the defect in place. Both are the maintainer's edits, not the author's.
 
 ### Counterfeit passes
 
 **Never: no `overflow:hidden`, no clipped content, no internal scroller, no reduced typography to pass the gate.**
 Each makes the measurement pass while making the artifact worse — the visual form of rewording a numeral away.
 
-The findings array is capped per viewport. Read `summary` for what was measured: "15 of 36", never a bare 15.
+The findings array is capped per viewport. Read `summary` for what was reported against what was measured: "15 of 36",
+never a bare 15 — and `summary.measured`, which says how much of the page could be measured at all.
 
 ## Three claims, never merged
 
-`deliver` proves the deterministic artifact checks. It does not prove the
-artifact looks right — that is a **human judgment**, and you must not claim it.
+`deliver` proves the deterministic artifact checks. It does not prove the artifact looks right — that is a **human judgment**, and you must not claim it.
 
-`visual-check` proves bounded behaviour in a real browser. That is all it proves:
-whether the artifact is any good remains a **human judgment**, and the tool never claims it.
+`visual-check` proves bounded behaviour in a real browser. That is all it proves: whether the artifact is any good remains a **human judgment**, and the tool never claims it.

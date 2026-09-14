@@ -6,7 +6,7 @@
  * imports no npm package and never will.
  */
 
-import { inflateRawSync } from 'node:zlib';
+import { crc32, inflateRawSync } from 'node:zlib';
 
 const SIG_LOCAL = 0x04034b50;
 const SIG_CENTRAL = 0x02014b50;
@@ -63,7 +63,7 @@ function rejectZip64(buf, eocd) {
 /**
  * @param {Buffer|Uint8Array} input
  * @returns {Array<{name: string, offset: number, compressedSize: number,
- *                  uncompressedSize: number, method: number}>}
+ *                  uncompressedSize: number, method: number, crc: number}>}
  */
 export function listEntries(input) {
   const buf = asBuffer(input);
@@ -81,6 +81,7 @@ export function listEntries(input) {
       throw new Error(`Corrupt ZIP archive: expected a central directory header for entry ${i + 1} of ${entryCount}.`);
     }
     const method = buf.readUInt16LE(p + 10);
+    const crc = buf.readUInt32LE(p + 16);
     const compressedSize = buf.readUInt32LE(p + 20);
     const uncompressedSize = buf.readUInt32LE(p + 24);
     const nameLength = buf.readUInt16LE(p + 28);
@@ -97,7 +98,7 @@ export function listEntries(input) {
     }
 
     const name = buf.toString('utf8', p + 46, p + 46 + nameLength);
-    entries.push({ name, offset, compressedSize, uncompressedSize, method });
+    entries.push({ name, offset, compressedSize, uncompressedSize, method, crc });
     p += 46 + nameLength + extraLength + commentLength;
   }
   return entries;
@@ -106,7 +107,7 @@ export function listEntries(input) {
 /**
  * @param {Buffer|Uint8Array} input
  * @param {{name: string, offset: number, compressedSize: number,
- *          uncompressedSize: number, method: number}} entry
+ *          uncompressedSize: number, method: number, crc: number}} entry
  * @returns {Buffer}
  */
 export function readEntry(input, entry) {
@@ -138,27 +139,42 @@ export function readEntry(input, entry) {
   }
   const body = buf.subarray(start, end);
 
-  if (method === METHOD_STORED) return Buffer.from(body);
-  if (method === METHOD_DEFLATE) {
+  let out;
+  if (method === METHOD_STORED) {
+    out = Buffer.from(body);
+  } else if (method === METHOD_DEFLATE) {
     try {
-      return inflateRawSync(body);
+      out = inflateRawSync(body);
     } catch (cause) {
       throw new Error(`Corrupt ZIP archive: could not inflate ${JSON.stringify(name)}.`, { cause });
     }
+  } else {
+    throw new Error(
+      `Unsupported ZIP compression method ${method} for ${JSON.stringify(name)}; only stored (0) and deflate (8) are supported.`,
+    );
   }
-  throw new Error(
-    `Unsupported ZIP compression method ${method} for ${JSON.stringify(name)}; only stored (0) and deflate (8) are supported.`,
-  );
+
+  verifyChecksum(entry, out);
+  return out;
 }
 
 /**
- * Convenience: read one named entry, or throw if the archive has no such part.
- * @param {Buffer|Uint8Array} input
- * @param {string} name
- * @returns {Buffer}
+ * Raw DEFLATE carries no integrity check of its own: a single flipped bit can
+ * decompress to different, entirely well-formed text without raising. Only the
+ * CRC-32 recorded in the archive catches that, and text quoted from a document
+ * that silently decoded wrong is exactly the failure this tool exists to
+ * prevent — so the check is mandatory, for stored entries as much as deflated.
  */
-export function readEntryByName(input, name) {
-  const entry = listEntries(input).find((e) => e.name === name);
-  if (!entry) throw new Error(`This archive has no ${name} part.`);
-  return readEntry(input, entry);
+function verifyChecksum(entry, bytes) {
+  const expected = entry.crc >>> 0;
+  // A zero CRC on an empty entry is legitimate; a zero CRC on bytes is not.
+  if (expected === 0 && bytes.length === 0) return;
+  const actual = crc32(bytes) >>> 0;
+  if (actual !== expected) {
+    throw new Error(
+      `Corrupt ZIP archive: entry ${JSON.stringify(entry.name)} failed CRC-32 check ` +
+        `(expected 0x${expected.toString(16).padStart(8, '0')}, ` +
+        `got 0x${actual.toString(16).padStart(8, '0')}) — the archive is corrupt.`,
+    );
+  }
 }

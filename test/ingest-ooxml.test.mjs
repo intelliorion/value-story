@@ -249,3 +249,119 @@ test('pptxText throws a clear Error when the archive holds no slides', () => {
   const zip = makeZip([{ name: 'word/document.xml', data: DOCUMENT_XML }]);
   assert.throws(() => pptxText(zip), /slide/i);
 });
+
+// ---------------------------------------------------------------------------
+// CRC-32 integrity — raw DEFLATE has no integrity check of its own, so a
+// flipped bit can decompress to different, well-formed-looking text.
+// ---------------------------------------------------------------------------
+
+const flipBit = (buf, byteIndex, bit) => {
+  const copy = Buffer.from(buf);
+  copy[byteIndex] ^= 1 << bit;
+  return copy;
+};
+
+/** Byte offset of an entry's data, computed from its LOCAL header. */
+const dataStart = (zip, entry) =>
+  entry.offset + 30 + zip.readUInt16LE(entry.offset + 26) + zip.readUInt16LE(entry.offset + 28);
+
+test('listEntries carries the CRC-32 recorded in the central directory', () => {
+  const zip = docxFixture();
+  const entry = listEntries(zip).find((e) => e.name === '[Content_Types].xml');
+  assert.equal(entry.crc >>> 0, crc32(Buffer.from('<Types/>', 'utf8')) >>> 0);
+});
+
+test('a clean archive reads without throwing — the CRC guard does not false-positive', () => {
+  const zip = docxFixture();
+  for (const entry of listEntries(zip)) {
+    assert.ok(readEntry(zip, entry).length > 0, entry.name);
+  }
+  assert.doesNotThrow(() => docxText(docxFixture()));
+  assert.doesNotThrow(() => pptxText(pptxFixture()));
+});
+
+test('one flipped bit in a DEFLATED entry throws instead of returning altered text', () => {
+  const clean = docxFixture();
+  const entry = listEntries(clean).find((e) => e.name === 'word/document.xml');
+  assert.equal(entry.method, 8);
+  const start = dataStart(clean, entry);
+
+  let crcCatches = 0;
+  let flips = 0;
+  for (let i = start; i < start + entry.compressedSize; i++) {
+    for (let bit = 0; bit < 8; bit++) {
+      const zip = flipBit(clean, i, bit);
+      const [corrupt] = listEntries(zip).filter((e) => e.name === 'word/document.xml');
+      flips++;
+      let threw = null;
+      let out = null;
+      try {
+        out = readEntry(zip, corrupt);
+      } catch (err) {
+        threw = err;
+      }
+      if (threw) {
+        if (/CRC-32/.test(threw.message)) crcCatches++;
+      } else {
+        // The only acceptable non-throw is a flip in a padding bit that DEFLATE
+        // ignores, which must reproduce the original bytes exactly.
+        assert.equal(
+          out.toString('utf8'),
+          DOCUMENT_XML,
+          `flipping bit ${bit} of byte ${i} returned altered text instead of throwing`,
+        );
+      }
+    }
+  }
+  assert.ok(flips > 0);
+  // Some flips break the DEFLATE stream outright; the rest decompress cleanly
+  // to WRONG text and are caught only by the checksum. Both must throw, and the
+  // second class must be non-empty or this test proves nothing.
+  assert.ok(crcCatches > 0, 'no flip exercised the CRC path');
+});
+
+test('one flipped bit in a STORED entry throws instead of returning altered text', () => {
+  const clean = docxFixture();
+  const entry = listEntries(clean).find((e) => e.name === '[Content_Types].xml');
+  assert.equal(entry.method, 0);
+  const start = dataStart(clean, entry);
+
+  for (let i = start; i < start + entry.compressedSize; i++) {
+    for (let bit = 0; bit < 8; bit++) {
+      const zip = flipBit(clean, i, bit);
+      const [corrupt] = listEntries(zip).filter((e) => e.name === '[Content_Types].xml');
+      assert.throws(
+        () => readEntry(zip, corrupt),
+        /CRC-32/,
+        `flipping bit ${bit} of byte ${i} returned altered text`,
+      );
+    }
+  }
+});
+
+test('the CRC error names the entry and both checksums', () => {
+  const clean = docxFixture();
+  const entry = listEntries(clean).find((e) => e.name === '[Content_Types].xml');
+  const zip = flipBit(clean, dataStart(clean, entry), 0);
+  assert.throws(() => readEntry(zip, listEntries(zip)[0]), (err) => {
+    assert.match(err.message, /\[Content_Types\]\.xml/);
+    assert.match(err.message, /expected 0x[0-9a-f]{8}/);
+    assert.match(err.message, /got 0x[0-9a-f]{8}/);
+    return true;
+  });
+});
+
+test('an empty entry with a zero CRC is legitimate and still reads', () => {
+  const zip = makeZip([{ name: 'word/empty.bin', data: Buffer.alloc(0), method: 0 }]);
+  const [entry] = listEntries(zip);
+  assert.equal(entry.crc, 0);
+  assert.equal(readEntry(zip, entry).length, 0);
+});
+
+test('a zero CRC on a NON-empty entry is still checked', () => {
+  const zip = docxFixture();
+  const cd = zip.indexOf(Buffer.from([0x50, 0x4b, 0x01, 0x02]));
+  zip.writeUInt32LE(0, cd + 16); // claim a zero CRC for a non-empty stored entry
+  const entry = listEntries(zip)[0];
+  assert.throws(() => readEntry(zip, entry), /CRC-32/);
+});

@@ -321,6 +321,7 @@ claim/measured-no-baseline  claim/measured-no-evidence  claim/estimated-no-assum
 claim/estimated-no-owner    claim/qualitative-has-number
 claim/direction-mismatch    claim/duplicate-id
 evidence/ref-unresolved     evidence/duplicate-ref      evidence/not-in-manifest
+evidence/manifest-stale
 render/figure-untraced      render/region-nested
 motion/budget-exceeded
 layout/overflow             layout/collision
@@ -337,6 +338,31 @@ tier in scope — an `estimated` claim's points legitimately carry no citation
 `output/write` is an OUTPUT fault: the document validated, and the artifact
 could not be written to the destination given. Its `subject` names that
 destination. It must never be reported as an input fault.
+
+`evidence/not-in-manifest` and `evidence/manifest-stale` are LIVE. Both are
+opt-in: they fire only when a manifest is supplied (`--manifest <path>` on
+`validate` and `deliver`), because a hand-authored case remains legitimate.
+Silence is therefore not evidence of verification, so the delivery receipt
+carries `citationsVerified` — false whenever no manifest was given.
+
+`evidence/not-in-manifest` matches `evidence[].title` against the manifest
+EXACTLY. A title differing only in case or spacing is reported, not accepted:
+its diagnostic lists the closest manifest titles in `evidence.candidates` so
+the repair is mechanical, and `supportedFixes` names the JSON Pointer of the
+offending entry. Auto-resolving a near match is the one behaviour this code
+exists to prevent.
+
+`evidence/manifest-stale` fires for a CITED document only — reading more than
+you cite is normal, and an uncited row that changed is nobody's problem. When
+the file is still on disk and its SHA-256 no longer matches, it is an ERROR:
+the quote or locator may no longer be in the document. When the file has moved
+or been deleted it is a WARNING carrying `evidence.condition: "file-missing"` —
+the document genuinely was read, and deleting it afterwards does not un-read
+it, so the citation stands on the manifest's record and delivery is not blocked.
+
+A malformed or schema-invalid manifest reports `schema/invalid` with
+`subject.manifest` naming the manifest file, rather than a code of its own: the
+fault is exactly what `schema/invalid` already means.
 
 `motion/budget-exceeded` belongs to M3 with `layout/overflow` and
 `layout/collision`: §6.3 describes it in the present tense, but nothing emits

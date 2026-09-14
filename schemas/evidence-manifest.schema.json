@@ -1,0 +1,36 @@
+{
+  "$id": "https://value-story.local/evidence-manifest.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Evidence manifest",
+  "description": "The record of what was actually read. A citation naming a source absent from this record is a fabrication, so the manifest is the only route by which a document enters the system.",
+  "type": "object",
+  "required": ["documents"],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "documents": {
+      "type": "array",
+      "description": "One row per document ingested. An EMPTY array is legitimate and means exactly what it says: nothing was read.",
+      "items": {
+        "type": "object",
+        "description": "Additional properties are deliberately PERMITTED here, unlike the value-case schema: `vs ingest` also records extraction metadata (character counts, extracted-text filenames, per-document warnings) and rejecting a truthful ingest row for carrying more than the minimum would be the wrong failure. The six required fields are what a citation is checked against.",
+        "required": ["path", "title", "kind", "sha256", "bytes", "ingested_at"],
+        "properties": {
+          "path": { "type": "string", "minLength": 1 },
+          "title": { "type": "string", "minLength": 1 },
+          "kind": { "type": "string", "enum": ["doc", "email", "dataset", "interview"] },
+          "sha256": {
+            "type": "string",
+            "description": "SHA-256 over the FILE BYTES, not the extracted text, so the row keeps identifying the same document even if extraction later improves.",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "bytes": { "type": "integer", "minimum": 0 },
+          "ingested_at": {
+            "type": "string",
+            "description": "ISO 8601 timestamp with an explicit offset or Z.",
+            "pattern": "^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])T([01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9](\\.[0-9]+)?(Z|[+-]([01][0-9]|2[0-3]):[0-5][0-9])$"
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,6 +1,7 @@
 import schemaValidate from '../generated/validate-value-case.mjs';
 import { semanticDiagnostics } from './semantic.mjs';
 import { reconcileDiagnostics } from './reconcile.mjs';
+import { manifestDiagnostics } from './manifest.mjs';
 import { renderCase } from './render/render-case.mjs';
 import { normalizedDiagnostic, applySuppression } from './diagnostics.mjs';
 
@@ -54,12 +55,32 @@ function schemaDiagnostics(doc) {
   });
 }
 
-export function validateCase(doc) {
+/**
+ * @param {object} doc the value case
+ * @param {{manifest?: object}} [options] an evidence manifest, already read and
+ *   validated by `readManifest`. Omitted, the manifest check does not run --
+ *   see `src/manifest.mjs`, and note that the DELIVERY RECEIPT records whether
+ *   one was supplied, so silence here is never mistaken for verification.
+ */
+export function validateCase(doc, options = {}) {
   const schema = schemaDiagnostics(doc);
+  // The manifest check sits AFTER the schema short-circuit, with semantic and
+  // reconciliation, for the same reason they do: it reads `/evidence/N/title`,
+  // and in a schema-invalid document that field may be absent, empty or not a
+  // string. A "citation not in the manifest" reported against a title the
+  // schema has already rejected is noise -- worse than noise, since it invites
+  // the agent to invent a title to satisfy it. Repair the shape first.
   if (schema.length) return { ok: false, diagnostics: applySuppression(schema) };
 
   const semantic = semanticDiagnostics(doc);
+  // Manifest diagnostics run ALONGSIDE the semantic ones rather than behind
+  // them: a fabricated citation is an independent fact about the document, not
+  // a consequence of any semantic fault, and hiding it behind an unrelated
+  // driver or claim error would cost an extra repair round for no gain.
+  const manifest = manifestDiagnostics(doc, options.manifest);
+  // Reconciliation stays gated on semantic diagnostics alone: it is derived
+  // from rendered output, which manifest faults do not affect.
   const reconcile = semantic.length ? [] : reconcileDiagnostics(doc, renderCase(doc));
-  const diagnostics = applySuppression([...semantic, ...reconcile]);
+  const diagnostics = applySuppression([...semantic, ...manifest, ...reconcile]);
   return { ok: diagnostics.every((d) => d.severity === 'warning'), diagnostics };
 }

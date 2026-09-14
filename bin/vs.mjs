@@ -7,6 +7,7 @@ import { validateCase } from '../src/validate.mjs';
 import { deliverCase } from '../src/deliver.mjs';
 import { installDiagnosticBoundary, fallbackDiagnostic } from '../src/diagnostics.mjs';
 import { ingestFile, ingestDir, outputName } from '../src/ingest/ingest.mjs';
+import { readManifest } from '../src/manifest.mjs';
 
 installDiagnosticBoundary();
 
@@ -18,8 +19,8 @@ const HELP = {
     { name: 'help', usage: 'vs help [--json]', description: 'Describe every command.' },
     { name: 'schema', usage: 'vs schema', description: 'Print the value-case JSON Schema.' },
     { name: 'render', usage: 'vs render <input.json> <output.html>', description: 'Render without validating. Use during visual iteration only.' },
-    { name: 'validate', usage: 'vs validate <input.json> [--json]', description: 'Check schema, invariants and figure tracing. Returns a repair receipt on failure.' },
-    { name: 'deliver', usage: 'vs deliver <input.json> <output.html> [--json]', description: 'Validate, then atomically write the artifact. Final acceptance.' },
+    { name: 'validate', usage: 'vs validate <input.json> [--manifest <m.json>] [--json]', description: 'Check schema, invariants and figure tracing. With --manifest, also refuse any citation naming a source that was never read. Returns a repair receipt on failure.' },
+    { name: 'deliver', usage: 'vs deliver <input.json> <output.html> [--manifest <m.json>] [--json]', description: 'Validate, then atomically write the artifact. Final acceptance. The receipt reports citationsVerified, which is false unless --manifest was supplied.' },
     { name: 'ingest', usage: 'vs ingest <path...> --out <dir> [--json]', description: 'Extract readable text from documents (directories are read recursively) and print the manifest rows describing exactly what was read.' },
   ],
   receipt: {
@@ -66,21 +67,25 @@ if (rawArgv.includes('--help') || rawArgv.includes('-h')) {
 // than a silently swallowed argument.
 const positional = [];
 let outDir = null;
+let manifestPath = null;
 for (let i = 0; i < rawArgv.length; i++) {
   const arg = rawArgv[i];
   if (arg === '--json') continue;
-  if (arg === '--out') {
+  if (arg === '--out' || arg === '--manifest') {
     const value = rawArgv[i + 1];
     if (value === undefined || value.startsWith('-')) {
-      process.stderr.write('--out requires a directory argument: vs ingest <path...> --out <dir>\n');
+      process.stderr.write(arg === '--out'
+        ? '--out requires a directory argument: vs ingest <path...> --out <dir>\n'
+        : '--manifest requires a file argument: vs validate <input.json> --manifest <manifest.json>\n');
       process.exit(1);
     }
-    outDir = value;
+    if (arg === '--out') outDir = value;
+    else manifestPath = value;
     i++;
     continue;
   }
   if (arg === '-' || arg === '--' || arg.startsWith('-')) {
-    process.stderr.write(`unrecognised argument: ${arg}\nonly --json and --out <dir> are supported flags.\n`);
+    process.stderr.write(`unrecognised argument: ${arg}\nonly --json, --out <dir> and --manifest <path> are supported flags.\n`);
     process.exit(1);
   }
   positional.push(arg);
@@ -90,6 +95,14 @@ const [command, input, output] = positional;
 
 if (outDir !== null && command !== 'ingest') {
   process.stderr.write(`--out is only meaningful for vs ingest, not vs ${command || '(none)'}\n`);
+  process.exit(1);
+}
+
+// `--manifest` is accepted on validate and deliver, and ONLY there. `render`
+// does not validate at all, so honouring the flag there would be theatre;
+// `ingest` produces a manifest rather than consuming one.
+if (manifestPath !== null && command !== 'validate' && command !== 'deliver') {
+  process.stderr.write(`--manifest is only meaningful for vs validate and vs deliver, not vs ${command || '(none)'}\n`);
   process.exit(1);
 }
 
@@ -217,17 +230,33 @@ try {
   emitFailure([fallbackDiagnostic(error, input)]);
 }
 
+// The manifest is read and schema-checked BEFORE the case is validated, so a
+// broken manifest is reported as the broken manifest rather than as a document
+// full of unresolvable citations. `readManifest` throws with `vsDiagnostics`.
+let manifest = null;
+if (manifestPath !== null) {
+  try {
+    manifest = readManifest(manifestPath);
+  } catch (error) {
+    emitFailure(error.vsDiagnostics || [fallbackDiagnostic(error, manifestPath)]);
+  }
+}
+const options = manifest ? { manifest } : {};
+
 if (command === 'render') {
   writeFileSync(output, renderCase(doc), 'utf8');
   process.stdout.write(`${output}\n`);
 } else if (command === 'validate') {
-  const result = validateCase(doc);
+  const result = validateCase(doc, options);
   if (!result.ok) emitFailure(result.diagnostics);
   process.stdout.write(asJson
-    ? `${JSON.stringify({ schemaVersion: 1, ok: true, diagnostics: [] }, null, 2)}\n`
+    // `citationsVerified` appears here for the same reason it appears on the
+    // delivery receipt: silence about whether citations were checked is what
+    // lets an unverified case pass for a verified one.
+    ? `${JSON.stringify({ schemaVersion: 1, ok: true, citationsVerified: Boolean(manifest), diagnostics: [] }, null, 2)}\n`
     : 'ok\n');
 } else {
-  const receipt = deliverCase(doc, output);
+  const receipt = deliverCase(doc, output, options);
   if (!receipt.ok) emitFailure(receipt.diagnostics);
   process.stdout.write(asJson
     ? `${JSON.stringify({ schemaVersion: 1, ...receipt }, null, 2)}\n`

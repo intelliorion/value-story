@@ -28,10 +28,22 @@ function outputWriteDiagnostic(error, outputPath) {
   });
 }
 
-export function deliverCase(doc, outputPath) {
-  const result = validateCase(doc);
+/**
+ * @param {object} doc the value case
+ * @param {string} outputPath where the artifact is committed
+ * @param {{manifest?: object}} [options] an evidence manifest from `readManifest`
+ *
+ * The receipt carries `citationsVerified`. It is TRUE only when a manifest was
+ * supplied and every citation was checked against it; with no manifest it is
+ * FALSE, because the tool performed no such verification and must not imply
+ * one. A hand-authored case still delivers -- it just delivers unverified, and
+ * says so.
+ */
+export function deliverCase(doc, outputPath, options = {}) {
+  const citationsVerified = Boolean(options.manifest);
+  const result = validateCase(doc, options);
   if (!result.ok) {
-    return { ok: false, artifact: null, diagnostics: result.diagnostics };
+    return { ok: false, artifact: null, citationsVerified, diagnostics: result.diagnostics };
   }
 
   const candidate = `${outputPath}.candidate`;
@@ -50,6 +62,7 @@ export function deliverCase(doc, outputPath) {
     return {
       ok: false,
       artifact: null,
+      citationsVerified,
       diagnostics: [outputWriteDiagnostic(error, outputPath)],
     };
   }
@@ -57,6 +70,7 @@ export function deliverCase(doc, outputPath) {
   return {
     ok: true,
     artifact: outputPath,
+    citationsVerified,
     specSha256: sha256(spec),
     artifactSha256: sha256(html),
     bytes: { spec: Buffer.byteLength(spec), artifact: Buffer.byteLength(html) },

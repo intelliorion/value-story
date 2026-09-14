@@ -18,7 +18,13 @@ const ajv = new Ajv({
   schemas: [read('common.schema.json')],
 });
 
-const validate = ajv.compile(read('value-case.schema.json'));
+// Every schema this project compiles, and the module each becomes. The
+// value-case schema is FROZEN; the manifest schema is the second contract --
+// the record of what was actually read, against which citations are checked.
+const TARGETS = [
+  { schema: 'value-case.schema.json', module: 'validate-value-case.mjs' },
+  { schema: 'evidence-manifest.schema.json', module: 'validate-evidence-manifest.mjs' },
+];
 
 // Ajv's standalone codegen references two tiny internal runtime helpers
 // (used by minLength/maxLength unicode counting and by enum/const/uniqueItems
@@ -88,24 +94,30 @@ const EQUAL_INLINE = `
     return a !== a && b !== b;
 })`;
 
-let code = standaloneCode(ajv, validate);
-const before = code;
-code = code
-  .replaceAll('require("ajv/dist/runtime/ucs2length").default', UCS2LENGTH_INLINE)
-  .replaceAll('require("ajv/dist/runtime/equal").default', EQUAL_INLINE);
-if (code.includes('require(')) {
-  throw new Error(
-    'generate-validators: generated code still contains require() after inlining known runtime helpers — ' +
-      'inspect the output for a new Ajv runtime dependency before shipping.'
-  );
-}
-if (code === before) {
-  console.warn(
-    'generate-validators: no known Ajv runtime helpers (ucs2length, equal) needed inlining this run — ' +
-      'verify whether a newer Ajv version changed what its standalone codegen emits.'
-  );
+function selfContained(validate, schemaName) {
+  let code = standaloneCode(ajv, validate);
+  const before = code;
+  code = code
+    .replaceAll('require("ajv/dist/runtime/ucs2length").default', UCS2LENGTH_INLINE)
+    .replaceAll('require("ajv/dist/runtime/equal").default', EQUAL_INLINE);
+  if (code.includes('require(')) {
+    throw new Error(
+      `generate-validators: generated code for ${schemaName} still contains require() after inlining ` +
+        'known runtime helpers — inspect the output for a new Ajv runtime dependency before shipping.'
+    );
+  }
+  if (code === before) {
+    console.warn(
+      `generate-validators: no known Ajv runtime helpers (ucs2length, equal) needed inlining for ${schemaName} — ` +
+        'verify whether a newer Ajv version changed what its standalone codegen emits.'
+    );
+  }
+  return code;
 }
 
 mkdirSync(join(outRoot, 'generated'), { recursive: true });
-writeFileSync(join(outRoot, 'generated', 'validate-value-case.mjs'), code);
-process.stdout.write('generated/validate-value-case.mjs\n');
+for (const target of TARGETS) {
+  const validate = ajv.compile(read(target.schema));
+  writeFileSync(join(outRoot, 'generated', target.module), selfContained(validate, target.schema));
+  process.stdout.write(`generated/${target.module}\n`);
+}

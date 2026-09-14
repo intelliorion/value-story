@@ -198,8 +198,11 @@ if (command === 'ingest') {
       + 'A citation names a document by its TITLE, so two documents with one title can never be told apart '
       + '— and a manifest written from them would resolve every citation to whichever row came first.\n'
       + `${lines.join('\n')}\n`
-      + 'Disambiguate before ingesting: rename one of the files, or ingest them separately into different '
-      + 'output directories. Nothing was written.\n',
+      + 'Disambiguate AT THE SOURCE, then ingest again. A title comes from inside the document, not from its '
+      + 'filename \u2014 for `.eml` it is the `Subject:` header, which every reply in a thread repeats by design \u2014 '
+      + 'so renaming the file will NOT change it. Either edit the title inside a copy of the document (for `.eml`, '
+      + 'the `Subject:` line, e.g. appending the date or sender), or ingest only the one document you actually read. '
+      + 'Do not hand-edit the manifest. Nothing was written.\n',
     );
     process.exit(1);
   }

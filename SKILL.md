@@ -35,7 +35,7 @@ node bin/vs.mjs ingest <sources> --out <dir> --json
 
 Extracts readable text into `<dir>`, one file per document, plus `<dir>/evidence-manifest.json` — the record of what was read.
 Read that text before authoring anything. A skipped file is absent from the manifest because it was never read; do not cite it.
-A manifest row carrying `warnings` decoded with a caveat, and `validate` reports `evidence/source-warning` when you cite it: a warned source must be verified against the original before its text is quoted.
+A manifest row carrying `warnings` was decoded with a caveat, and `validate` reports `evidence/source-warning` when you cite it: a warned source must be verified against the original before its text is quoted.
 
 ## Fast authoring path
 

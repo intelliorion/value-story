@@ -266,7 +266,7 @@ export function manifestDiagnostics(doc, manifest) {
           documentsInManifest: documents.length,
         },
         supportedFixes: [
-          `give the documents distinct titles in the manifest — re-run \`vs ingest\`, which refuses a corpus with two documents of the same title — then set /evidence/${i}/title to the one actually read`,
+          `give the documents distinct titles AT THE SOURCE — a title comes from inside the document (for \`.eml\`, the \`Subject:\` header), so renaming the file does not change it; edit the title in a copy of the document, ingest again, then set /evidence/${i}/title to the one actually read`,
           `if only one of ${paths.map((p) => JSON.stringify(p)).join(' or ')} was read, ingest that file alone and cite its unique title`,
         ],
       }));

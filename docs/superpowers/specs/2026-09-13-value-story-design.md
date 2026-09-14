@@ -321,7 +321,8 @@ claim/measured-no-baseline  claim/measured-no-evidence  claim/estimated-no-assum
 claim/estimated-no-owner    claim/qualitative-has-number
 claim/direction-mismatch    claim/duplicate-id
 evidence/ref-unresolved     evidence/duplicate-ref      evidence/not-in-manifest
-evidence/manifest-stale
+evidence/manifest-stale     evidence/ambiguous-citation evidence/empty-extraction
+evidence/source-warning
 render/figure-untraced      render/region-nested
 motion/budget-exceeded
 layout/overflow             layout/collision            layout/contrast
@@ -361,6 +362,36 @@ or been deleted it is a WARNING carrying `evidence.condition: "file-missing"` �
 the document genuinely was read, and deleting it afterwards does not un-read
 it, so the citation stands on the manifest's record and delivery is not blocked.
 
+`evidence/ambiguous-citation` is the other half of the same guarantee, and an
+ERROR. Nothing in the manifest format makes a title unique — two `.eml` files
+exported from one thread carry the same `Subject:`, which is the norm rather
+than an edge case — so a title matching MORE THAN ONE row must never resolve.
+First-wins resolution would hash the wrong row and then confirm it as fresh,
+producing `ok: true` with zero diagnostics over a citation attached to a
+document nobody meant. The diagnostic names every matching path in
+`evidence.matchingPaths` so the author can disambiguate. The other end of this
+is `vs ingest`, which refuses outright to write a manifest whose rows share a
+title, and disambiguates none of them automatically: a title nobody chose is
+still a title a citation has to guess at.
+
+`evidence/empty-extraction` is an ERROR. `vs ingest` records `characters` per
+row, and a row with zero of them says the file was OPENED, not that anything
+was read out of it. The extraction already warns "treat this document as unread
+rather than as evidence of nothing", and a row nobody can read is exactly what
+"you cannot cite what you did not read" refuses. It fires only when
+`characters` is present and zero, so a hand-written manifest carrying no
+extraction metadata is unaffected.
+
+`evidence/source-warning` is a WARNING. `vs ingest` records a warning on a row
+whenever the extracted text may not be what the document says: a lossy UTF-8
+decode, an unrecognised charset, an 8-bit `Subject:` header, an external
+converter's own complaint, a base64 body, a dropped attachment. None of those
+means the text IS wrong, so blocking delivery would teach an agent to drop
+citations to get past the gate; staying silent is worse, because the agent
+then quotes an extraction nobody flagged. It is reported, delivery proceeds,
+and the receipt carries it. `SKILL.md` requires the source be verified against
+the original before its text is quoted.
+
 A malformed or schema-invalid manifest reports `schema/invalid` with
 `subject.manifest` naming the manifest file, rather than a code of its own: the
 fault is exactly what `schema/invalid` already means.
@@ -386,7 +417,9 @@ admitting a gap, and undetectable downstream.
 The extraction stage therefore emits `evidence-manifest.json`: every document
 and thread actually ingested, with path, title, date, and SHA-256.
 `evidence/not-in-manifest` fires when a citation names a source that was never
-read.
+read, and `evidence/ambiguous-citation` when it names more than one. Together
+they are the whole guarantee: a title that cannot identify exactly one readable
+document refuses to resolve.
 
 **You cannot cite what you did not read.** Extraction is consequently the only
 route by which a document enters the system; citations cannot be hand-added

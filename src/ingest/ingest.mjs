@@ -82,7 +82,7 @@ const skip = (path, reason) => ({ path, skipped: true, reason });
  * @param {{tools?: object, env?: object}} [options] injection points for the
  *   optional external converters; tests use them to simulate a missing binary
  * @returns {{path: string, title: string, kind: string, sha256: string,
- *            bytes: number, text: string, warnings: string[]}
+ *            bytes: number, ingested_at: string, text: string, warnings: string[]}
  *          |{path: string, skipped: true, reason: string}}
  *   A SKIP is returned, not thrown, whenever the file is real but unreadable:
  *   an unsupported extension, a corrupt archive, or an absent converter.
@@ -131,7 +131,15 @@ export function ingestFile(path, options = {}) {
     warnings.push('Extraction produced empty text. Treat this document as unread rather than as evidence of nothing.');
   }
 
-  return { path, title, kind: kindFor(ext), sha256, bytes: stats.size, text, warnings };
+  // Stamped HERE, per document, at the moment this document was read.
+  // Taking one timestamp for the whole run and copying it onto every row made
+  // `ingested_at` per-run in meaning while being per-document in shape -- a
+  // field that looks like it answers "when was THIS read?" and does not.
+  const ingestedAt = new Date().toISOString();
+
+  return {
+    path, title, kind: kindFor(ext), sha256, bytes: stats.size, ingested_at: ingestedAt, text, warnings,
+  };
 }
 
 /** Every file in a directory, sorted, optionally recursing. Dotfiles are ignored. */

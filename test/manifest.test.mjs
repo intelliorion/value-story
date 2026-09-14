@@ -506,13 +506,223 @@ test('an unreadable manifest fails the CLI with a diagnostic on stderr', () => {
   assert.equal(receipt.diagnostics[0].code, 'input/read');
 });
 
+// ------------------------------------------------- ambiguity: two rows, one title ---
+//
+// Nothing in the manifest format makes a title unique, and `vs ingest` derives
+// a title from the filename stem or an `.eml` Subject -- two messages exported
+// from one thread carry the SAME Subject. First-wins resolution hashed row 1
+// and then confirmed it, producing ok:true with zero diagnostics over a
+// citation attached to a document nobody meant.
+
+/** A manifest whose FIRST evidence title names two different files. */
+function ambiguousManifest(dir, doc) {
+  const manifest = manifestFor(dir, doc);
+  const title = manifest.documents[0].title;
+  const path = join(dir, 'second-copy.txt');
+  const body = 'a DIFFERENT document that happens to share a title\n';
+  writeFileSync(path, body, 'utf8');
+  manifest.documents.push({
+    path,
+    title,
+    kind: 'doc',
+    sha256: sha256(Buffer.from(body, 'utf8')),
+    bytes: Buffer.byteLength(body),
+    ingested_at: '2026-09-14T09:00:00Z',
+  });
+  return manifest;
+}
+
+test('a title matching TWO manifest rows never resolves: it is refused, not resolved to the first', () => {
+  const dir = tmp();
+  try {
+    const doc = good();
+    const manifest = ambiguousManifest(dir, doc);
+    const diagnostics = manifestDiagnostics(doc, manifest);
+
+    const fired = diagnostics.filter((d) => d.code === 'evidence/ambiguous-citation');
+    assert.equal(fired.length, 1, JSON.stringify(diagnostics, null, 2));
+    assert.equal(fired[0].severity, 'error');
+    assert.equal(fired[0].subject.pointer, '/evidence/0/title');
+    // EVERY matching path is named, so the author can say which was read.
+    assert.deepEqual(fired[0].evidence.matchingPaths,
+      [manifest.documents[0].path, manifest.documents[manifest.documents.length - 1].path]);
+    for (const path of fired[0].evidence.matchingPaths) assert.ok(fired[0].message.includes(path));
+    // And the ambiguous citation is NOT then staleness-checked against a row
+    // chosen arbitrarily: one fault, one diagnostic.
+    assert.equal(diagnostics.filter((d) => d.subject.index === 0).length, 1);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('the ambiguous citation FAILS validation rather than passing with a confirmed hash', () => {
+  const dir = tmp();
+  try {
+    const doc = good();
+    const manifest = ambiguousManifest(dir, doc);
+    // The hazard, stated precisely: every file on disk matches its recorded
+    // hash, so the staleness guard would have CONFIRMED whichever row it
+    // picked. Nothing but the ambiguity check stands between that and ok:true.
+    const result = validateCase(doc, { manifest });
+    assert.equal(result.ok, false, 'an ambiguous citation must not validate');
+    assert.ok(result.diagnostics.some((d) => d.code === 'evidence/ambiguous-citation'));
+    assert.ok(!result.diagnostics.some((d) => d.code === 'evidence/manifest-stale'),
+      'nothing may be reported as fresh against a row that was never identified');
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('vs ingest REFUSES a corpus with two documents of one title, naming both paths', () => {
+  const dir = tmp();
+  try {
+    const a = join(dir, 'a');
+    const b = join(dir, 'b');
+    for (const sub of [a, b]) {
+      writeFileSync(join(dir, `${sub === a ? 'a' : 'b'}.marker`), '', 'utf8');
+    }
+    // Same Subject:, two files -- the exported-thread case, exactly.
+    const one = join(dir, 'msg-1.eml');
+    const two = join(dir, 'msg-2.eml');
+    const eml = (body) => `From: a@b.example\nTo: c@d.example\nSubject: Re: pilot feedback\n`
+      + `Date: Wed, 12 Aug 2026 14:32:00 +0000\nContent-Type: text/plain; charset=utf-8\n\n${body}\n`;
+    writeFileSync(one, eml('the first message'), 'utf8');
+    writeFileSync(two, eml('the second message, saying something else entirely'), 'utf8');
+
+    const { stderr } = runFailure(['ingest', one, two, '--out', join(dir, 'out'), '--json']);
+    assert.match(stderr, /duplicate title/i);
+    assert.match(stderr, /Re: pilot feedback/);
+    assert.ok(stderr.includes(one) && stderr.includes(two), stderr);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+// --------------------------------------------- an empty extraction is unread ---
+
+test('citing a row whose extraction produced NO characters is an ERROR, not a pass', () => {
+  const dir = tmp();
+  try {
+    const doc = good();
+    const manifest = manifestFor(dir, doc);
+    // The row `vs ingest` writes for a document it opened and read nothing out
+    // of: a real file, a real hash, and zero characters.
+    manifest.documents[0].characters = 0;
+    manifest.documents[0].warnings = [
+      'Extraction produced empty text. Treat this document as unread rather than as evidence of nothing.',
+    ];
+
+    const diagnostics = manifestDiagnostics(doc, manifest);
+    const fired = diagnostics.filter((d) => d.code === 'evidence/empty-extraction');
+    assert.equal(fired.length, 1, JSON.stringify(diagnostics, null, 2));
+    assert.equal(fired[0].severity, 'error');
+    assert.equal(fired[0].subject.pointer, '/evidence/0');
+    assert.equal(fired[0].evidence.characters, 0);
+    // The empty-extraction warning is reported once, as the error, and not a
+    // second time as a decode warning.
+    assert.equal(diagnostics.filter((d) => d.code === 'evidence/source-warning').length, 0);
+
+    assert.equal(validateCase(doc, { manifest }).ok, false);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('an UNCITED empty row is silent, and a row with no `characters` at all is silent', () => {
+  const dir = tmp();
+  try {
+    const doc = good();
+    const manifest = manifestFor(dir, doc, { extra: ['something nobody cites'] });
+    manifest.documents[manifest.documents.length - 1].characters = 0;
+    assert.deepEqual(manifestDiagnostics(doc, manifest), []);
+
+    // A hand-written manifest carries no extraction metadata at all. Absence
+    // is not zero, and must not be read as one.
+    const bare = manifestFor(dir, doc);
+    assert.equal(bare.documents[0].characters, undefined);
+    assert.deepEqual(manifestDiagnostics(doc, bare), []);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+// ------------------------------------------- decode warnings reach the receipt ---
+
+test('a cited row carrying a decode warning is reported at WARNING severity', () => {
+  const dir = tmp();
+  try {
+    const doc = good();
+    const manifest = manifestFor(dir, doc);
+    manifest.documents[1].characters = 412;
+    manifest.documents[1].warnings = [
+      'Decoded as UTF-8 with 3 replacement character(s); some bytes were not valid UTF-8.',
+    ];
+
+    const diagnostics = manifestDiagnostics(doc, manifest);
+    const fired = diagnostics.filter((d) => d.code === 'evidence/source-warning');
+    assert.equal(fired.length, 1, JSON.stringify(diagnostics, null, 2));
+    assert.equal(fired[0].severity, 'warning');
+    assert.equal(fired[0].subject.pointer, '/evidence/1');
+    assert.match(fired[0].message, /replacement character/);
+    assert.match(fired[0].message, /Verify this source against the original/);
+
+    // A warning does not block: the text may well be fine.
+    const result = validateCase(doc, { manifest });
+    assert.equal(result.ok, true, JSON.stringify(result.diagnostics, null, 2));
+    assert.ok(result.diagnostics.some((d) => d.code === 'evidence/source-warning'));
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('a warning survives all the way to the validate and deliver RECEIPTS', () => {
+  const dir = tmp();
+  try {
+    const doc = good();
+    const manifest = manifestFor(dir, doc);
+    manifest.documents[1].characters = 412;
+    manifest.documents[1].warnings = ['The Subject: header carried raw 8-bit bytes; it was decoded as UTF-8.'];
+    const manifestPath = writeManifest(dir, manifest);
+    const casePath = join(dir, 'case.json');
+    writeFileSync(casePath, JSON.stringify(doc), 'utf8');
+
+    const stdout = execFileSync('node',
+      [CLI, 'validate', casePath, '--manifest', manifestPath, '--json'],
+      { stdio: 'pipe', encoding: 'utf8' });
+    const receipt = JSON.parse(stdout);
+    assert.equal(receipt.ok, true);
+    // A receipt printing `diagnostics: []` beside ok:true is exactly how these
+    // warnings died before reaching an agent.
+    assert.equal(receipt.diagnostics.length, 1, JSON.stringify(receipt, null, 2));
+    assert.equal(receipt.diagnostics[0].code, 'evidence/source-warning');
+
+    const out = join(dir, 'out.html');
+    const delivered = JSON.parse(execFileSync('node',
+      [CLI, 'deliver', casePath, out, '--manifest', manifestPath, '--json'],
+      { stdio: 'pipe', encoding: 'utf8' }));
+    assert.equal(delivered.ok, true);
+    assert.equal(delivered.citationsVerified, true);
+    assert.ok(delivered.diagnostics.some((d) => d.code === 'evidence/source-warning'),
+      JSON.stringify(delivered.diagnostics, null, 2));
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 // ------------------------------------------------------------------ spec ---
 
-test('spec 5.1 lists both manifest codes', () => {
+test('spec 5.1 lists every manifest code', () => {
   const spec = readFileSync(
     fileURLToPath(new URL('../docs/superpowers/specs/2026-09-13-value-story-design.md', import.meta.url)),
     'utf8');
-  const section = spec.slice(spec.indexOf('### 5.1 Codes'), spec.indexOf('### 5.2 The manifest'));
-  assert.match(section, /evidence\/not-in-manifest/);
-  assert.match(section, /evidence\/manifest-stale/);
+  const section = spec.slice(spec.indexOf('### 5.1 Codes'), spec.indexOf('### 5.3 Suppression'));
+  for (const code of [
+    'evidence/not-in-manifest',
+    'evidence/manifest-stale',
+    'evidence/ambiguous-citation',
+    'evidence/empty-extraction',
+    'evidence/source-warning',
+  ]) {
+    assert.ok(section.includes(code), `spec 5.1 must list ${code}`);
+  }
 });

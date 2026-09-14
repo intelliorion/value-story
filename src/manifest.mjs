@@ -29,6 +29,26 @@
  *    document genuinely was read, and deleting it afterwards does not un-read
  *    it. That is a WARNING; changed bytes under a live citation is an ERROR,
  *    because the quote or locator may no longer say what the case claims.
+ *
+ * 5. A title matching MORE THAN ONE row NEVER resolves. Nothing in the
+ *    manifest format makes a title unique -- two `.eml` files exported from
+ *    one thread share a `Subject:`, which is the norm rather than an edge
+ *    case -- so first-wins resolution would hash the wrong row and then
+ *    CONFIRM it. `evidence/ambiguous-citation` names every matching path
+ *    instead, because the honest answer to "which of these did you read?" is
+ *    a question back to the author, never a guess.
+ *
+ * 6. A cited row whose extraction produced NO CHARACTERS is an ERROR. The row
+ *    records that the file was opened; it does not record that anything was
+ *    read out of it. Citing it is exactly "citing what you did not read",
+ *    which is the one rule this module exists to enforce.
+ *
+ * 7. A cited row carrying an extraction WARNING -- a lossy decode, an unknown
+ *    charset, an 8-bit header, a converter's own complaint, a dropped
+ *    attachment -- is reported at WARNING severity. The text may well be
+ *    fine, so it does not block delivery; but silently-wrong text quoted as
+ *    a source is the failure mode this whole pipeline is built against, so it
+ *    must reach the receipt where an agent can act on it.
  */
 
 import { createHash } from 'node:crypto';
@@ -172,9 +192,14 @@ export function manifestDiagnostics(doc, manifest) {
   if (!manifest) return [];
 
   const documents = Array.isArray(manifest.documents) ? manifest.documents : [];
+  // title -> EVERY row carrying it. A Map of the first row per title is what
+  // let a duplicated `Subject:` resolve to the wrong document and then pass
+  // its own staleness check. See decision 5 in the header.
   const byTitle = new Map();
   for (const document of documents) {
-    if (!byTitle.has(document.title)) byTitle.set(document.title, document);
+    const rows = byTitle.get(document.title);
+    if (rows) rows.push(document);
+    else byTitle.set(document.title, [document]);
   }
   const titles = documents.map((d) => d.title);
 
@@ -184,9 +209,9 @@ export function manifestDiagnostics(doc, manifest) {
   evidence.forEach((entry, i) => {
     const title = entry?.title;
     // EXACT match, deliberately. See decision 2 in the header.
-    const source = byTitle.get(title);
+    const matches = byTitle.get(title) || [];
 
-    if (!source) {
+    if (matches.length === 0) {
       const ranked = closestTitles(title, titles);
       const best = ranked[0];
       out.push(normalizedDiagnostic({
@@ -215,6 +240,98 @@ export function manifestDiagnostics(doc, manifest) {
         ],
       }));
       return;
+    }
+
+    if (matches.length > 1) {
+      // The title is the join key, and it identifies more than one document.
+      // Resolving to any of them would attach the citation to a source the
+      // author may never have meant, and the staleness check below would then
+      // confirm that wrong source as fresh. Refuse instead.
+      const paths = matches.map((m) => m.path);
+      out.push(normalizedDiagnostic({
+        code: 'evidence/ambiguous-citation',
+        message: `Evidence ${JSON.stringify(entry?.ref)} cites ${JSON.stringify(title)}, which names `
+          + `${matches.length} different documents in the manifest: ${paths.map((p) => JSON.stringify(p)).join(', ')}. `
+          + 'A title that identifies more than one document identifies none of them: nothing here can say which was read, '
+          + 'so the citation is refused rather than resolved to the first row.',
+        subject: {
+          pointer: `/evidence/${i}/title`, collection: 'evidence', index: i,
+          ref: entry?.ref, title,
+        },
+        evidence: {
+          condition: 'duplicate-title',
+          matchingPaths: paths,
+          matchingSha256: matches.map((m) => m.sha256),
+          matches: matches.length,
+          documentsInManifest: documents.length,
+        },
+        supportedFixes: [
+          `give the documents distinct titles in the manifest — re-run \`vs ingest\`, which refuses a corpus with two documents of the same title — then set /evidence/${i}/title to the one actually read`,
+          `if only one of ${paths.map((p) => JSON.stringify(p)).join(' or ')} was read, ingest that file alone and cite its unique title`,
+        ],
+      }));
+      return;
+    }
+
+    const source = matches[0];
+
+    // An extraction that produced nothing is a row saying the file was OPENED,
+    // not that anything was READ out of it. See decision 6 in the header.
+    if (source.characters === 0) {
+      out.push(normalizedDiagnostic({
+        code: 'evidence/empty-extraction',
+        message: `Evidence ${JSON.stringify(entry?.ref)} cites ${JSON.stringify(title)}, read from ${source.path}, `
+          + 'whose extraction produced NO text at all. The file was opened; nothing was read out of it. '
+          + 'A row with zero characters is a record of an unread document, not evidence of anything it might contain.',
+        subject: {
+          pointer: `/evidence/${i}`, collection: 'evidence', index: i,
+          ref: entry?.ref, title, path: source.path,
+        },
+        evidence: {
+          condition: 'empty-extraction',
+          path: source.path,
+          characters: 0,
+          bytes: source.bytes,
+          warnings: Array.isArray(source.warnings) ? source.warnings : [],
+        },
+        supportedFixes: [
+          `remove /evidence/${i} and every reference to ${JSON.stringify(entry?.ref)}, then state the gap rather than citing an unread document`,
+          `or extract ${source.path} by another route (export it to a supported format and re-run \`vs ingest\`), confirm the text is really there, and cite it then`,
+        ],
+      }));
+    }
+
+    // Decode warnings. The empty-extraction warning is already reported above
+    // as its own error; repeating it here would charge one fault twice.
+    const warnings = (Array.isArray(source.warnings) ? source.warnings : [])
+      .filter((w) => !String(w).startsWith('Extraction produced empty text'));
+    if (warnings.length > 0) {
+      out.push(normalizedDiagnostic({
+        code: 'evidence/source-warning',
+        // A WARNING, not an error. See decision 7 in the header: the text may
+        // be perfectly fine, and blocking delivery on a suspicion would teach
+        // an agent to strip citations to get past the gate. What it must not
+        // do is stay silent.
+        severity: 'warning',
+        message: `Evidence ${JSON.stringify(entry?.ref)} cites ${JSON.stringify(title)}, read from ${source.path}, `
+          + `whose extraction recorded ${warnings.length} warning(s): ${warnings.join(' ')} `
+          + 'The extracted text may not say what the original says. Verify this source against the original document '
+          + 'before quoting or paraphrasing it.',
+        subject: {
+          pointer: `/evidence/${i}`, collection: 'evidence', index: i,
+          ref: entry?.ref, title, path: source.path,
+        },
+        evidence: {
+          condition: 'extraction-warning',
+          path: source.path,
+          warnings,
+          characters: source.characters,
+        },
+        supportedFixes: [
+          `open ${source.path} itself and confirm the text quoted or located by /evidence/${i} is really what the document says`,
+          `if it is not, remove /evidence/${i} and the claims resting on it rather than quoting an unreliable extraction`,
+        ],
+      }));
     }
 
     // Staleness: only for a CITED document, and only against a file still on

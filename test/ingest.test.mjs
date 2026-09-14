@@ -427,20 +427,74 @@ test('vs ingest --json prints a single parseable object on stdout', () => {
   assert.match(manifest.skipped[0].reason, /\.png/);
 });
 
-test('two same-named files in different directories do not overwrite each other', () => {
+// Two files with the same basename in different directories collide TWICE:
+// on the extracted-text filename, and on the manifest title. The first is
+// resolved silently by `outputName` (the hash of the absolute path). The
+// second cannot be resolved silently at all -- a title is what a citation
+// names -- so `vs ingest` refuses the run. Both halves are asserted here.
+test('two same-named files in different directories do not overwrite each other on disk', () => {
+  const root = tmp();
+  mkdirSync(join(root, 'one'));
+  mkdirSync(join(root, 'two'));
+  const a = write(join(root, 'one'), 'report.txt', 'ONE');
+  const b = write(join(root, 'two'), 'report.txt', 'TWO');
+
+  assert.notEqual(outputName(a), outputName(b));
+  const first = ingestFile(a);
+  const second = ingestFile(b);
+  assert.equal(first.text, 'ONE');
+  assert.equal(second.text, 'TWO');
+});
+
+test('two same-named files in different directories are REFUSED: one title cannot name two documents', () => {
   const root = tmp();
   const out = join(tmp(), 'out');
   mkdirSync(join(root, 'one'));
   mkdirSync(join(root, 'two'));
-  write(join(root, 'one'), 'report.txt', 'ONE');
-  write(join(root, 'two'), 'report.txt', 'TWO');
+  const a = write(join(root, 'one'), 'report.txt', 'ONE');
+  const b = write(join(root, 'two'), 'report.txt', 'TWO');
 
-  const manifest = JSON.parse(cli(['ingest', join(root, 'one', 'report.txt'), join(root, 'two', 'report.txt'), '--out', out, '--json']));
-  assert.equal(manifest.documents.length, 2);
-  const names = manifest.documents.map((d) => d.textFile);
-  assert.notEqual(names[0], names[1]);
-  const bodies = names.map((n) => readFileSync(join(out, n), 'utf8')).sort();
-  assert.deepEqual(bodies, ['ONE', 'TWO']);
+  const stderr = cliFailure(['ingest', a, b, '--out', out, '--json']);
+  // Both paths named, so the operator knows exactly what to disambiguate.
+  assert.match(stderr, new RegExp(a.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+  assert.match(stderr, new RegExp(b.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+  assert.match(stderr, /duplicate title/i);
+  assert.match(stderr, /"report"/);
+  // Nothing was written: a half-built output directory would invite a second
+  // run over a corpus that is still ambiguous.
+  assert.equal(existsSync(join(out, 'evidence-manifest.json')), false);
+});
+
+test('ingested_at is stamped per DOCUMENT, at the time that document was read', () => {
+  const src = tmp();
+  const out = join(tmp(), 'out');
+  const first = write(src, 'a-first.txt', 'first');
+  const second = write(src, 'b-second.txt', 'second');
+
+  const a = ingestFile(first);
+  // A real gap BETWEEN the two reads, so two stamps taken at ingest time
+  // genuinely differ. One timestamp per RUN, copied onto every row, made this
+  // field per-run in meaning while being per-document in shape.
+  const until = Date.now() + 5;
+  while (Date.now() < until) { /* busy-wait, deliberately: no timers in tests */ }
+  const b = ingestFile(second);
+  assert.match(a.ingested_at, /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$/);
+  assert.notEqual(a.ingested_at, b.ingested_at);
+  assert.ok(a.ingested_at < b.ingested_at, `${a.ingested_at} should precede ${b.ingested_at}`);
+
+  // And the manifest carries what `ingestFile` stamped, in ingest order,
+  // rather than one value minted at write time for every row at once.
+  const rows = JSON.parse(cli(['ingest', src, '--out', out, '--json'])).documents;
+  assert.equal(rows.length, 2);
+  for (const row of rows) {
+    assert.match(row.ingested_at, /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$/);
+  }
+  assert.ok(rows[0].ingested_at <= rows[1].ingested_at);
+  assert.deepEqual(
+    readManifest(join(out, 'evidence-manifest.json')).documents.map((d) => d.ingested_at),
+    rows.map((d) => d.ingested_at),
+    'the manifest file and the run report must agree row for row',
+  );
 });
 
 test('a filename containing a space and a quote survives the round trip', () => {
@@ -481,7 +535,14 @@ test('an unrecognised flag is still rejected now that --out exists', () => {
 });
 
 test('--out is rejected for commands that do not take it', () => {
-  cliFailure(['validate', 'x.json', '--out', '/tmp/o']);
+  // The input must EXIST. Naming a missing file made this pass on `input/read`
+  // whatever the flag handling did, so it asserted nothing about --out.
+  assert.ok(existsSync(FIXTURE));
+  const stderr = cliFailure(['validate', FIXTURE, '--out', '/tmp/o']);
+  assert.match(stderr, /--out is only meaningful for vs ingest/);
+  // And the same input without the flag validates, so the rejection above is
+  // the flag's doing and not the document's.
+  cli(['validate', FIXTURE, '--json']);
 });
 
 test('vs help lists ingest and still exits zero on stdout', () => {
@@ -899,8 +960,11 @@ test('stdout keeps exactly the shape it had before the manifest file existed', (
   // wrote, additively -- every field this test already knew about is still
   // here, unrenamed and unremoved.
   assert.deepEqual(Object.keys(report).sort(), ['documents', 'manifest', 'ok', 'out', 'schemaVersion', 'skipped']);
+  // `ingested_at` joined the row later still: it is now stamped per document
+  // by `ingestFile`, so the run report carries the same value the manifest
+  // does rather than the manifest inventing one for every row at write time.
   assert.deepEqual(Object.keys(report.documents[0]).sort(),
-    ['bytes', 'characters', 'kind', 'path', 'sha256', 'textFile', 'title', 'warnings']);
+    ['bytes', 'characters', 'ingested_at', 'kind', 'path', 'sha256', 'textFile', 'title', 'warnings']);
   assert.equal(report.skipped.length, 1);
 });
 

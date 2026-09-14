@@ -22,11 +22,11 @@ const HELP = {
     { name: 'validate', usage: 'vs validate <input.json> [--manifest <m.json>] [--json]', description: 'Check schema, invariants and figure tracing. With --manifest, also refuse any citation naming a source that was never read. Returns a repair receipt on failure.' },
     { name: 'deliver', usage: 'vs deliver <input.json> <output.html> [--manifest <m.json>] [--json]', description: 'Validate, then atomically write the artifact. Final acceptance. The receipt reports citationsVerified, which is false unless --manifest was supplied.' },
     { name: 'ingest', usage: 'vs ingest <path...> --out <dir> [--json]', description: 'Extract readable text from documents (directories are read recursively) and print the manifest rows describing exactly what was read.' },
-    { name: 'visual-check', usage: 'vs visual-check <output.html> [--json]', description: 'Measure the DELIVERED artifact in a real browser at 1440x900, 1600x1000 and 1920x1080: horizontal overflow, WCAG 2.1 text contrast, text collision, and the hero delta above the fold at the smallest size. Scrolling down is not a finding, and an artifact with no hero delta skips that check rather than failing it. Requires Playwright (a devDependency). Proves bounded behaviour, never that the artifact is good.' },
+    { name: 'visual-check', usage: 'vs visual-check <output.html> [--json]', description: 'Measure the DELIVERED artifact in a real browser at 1440x900, 1600x1000 and 1920x1080: horizontal overflow, WCAG 2.1 text contrast, text collision, and the hero delta above the fold at every one of them. Scrolling down is not a finding, and an artifact with no hero delta skips that check rather than failing it. Requires Playwright (a devDependency). Proves bounded behaviour, never that the artifact is good.' },
   ],
   receipt: {
     onFailure: 'JSON on stderr: { schemaVersion, ok:false, diagnostics:[{ code, severity, message, subject, evidence, supportedFixes }] }',
-    supportedFixes: 'Each entry names a JSON Pointer into the input document. Apply one per repair round.',
+    supportedFixes: 'For a document-level diagnostic each entry names a JSON Pointer into the input document; apply one per repair round. The `layout/*` findings from `visual-check` are the exception: they name a CSS selector and a file under src/render/, are addressed to the maintainer of the renderer, and are never repaired by editing the value case.',
   },
 };
 
@@ -172,6 +172,38 @@ if (command === 'ingest') {
   documents.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
   skipped.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
 
+  // THE TITLE IS THE JOIN KEY. `src/manifest.mjs` resolves a citation by
+  // matching `evidence[].title` against a manifest row, so two rows sharing a
+  // title make that resolution meaningless -- and two `.eml` files exported
+  // from one thread share a `Subject:`, which is ordinary rather than exotic.
+  //
+  // This is a HARD ERROR and not a warning, and no title is disambiguated
+  // automatically. Appending a filename would produce a title nobody chose,
+  // silently changing what a citation has to say to resolve; refusing puts the
+  // decision where the knowledge is. Nothing is written when this fires: a
+  // half-written output directory would invite a second run over a corpus that
+  // is still ambiguous.
+  const byTitle = new Map();
+  for (const doc of documents) {
+    const rows = byTitle.get(doc.title);
+    if (rows) rows.push(doc);
+    else byTitle.set(doc.title, [doc]);
+  }
+  const collisions = [...byTitle.entries()].filter(([, rows]) => rows.length > 1);
+  if (collisions.length > 0) {
+    const lines = collisions.map(([title, rows]) => `  ${JSON.stringify(title)} is the title of ${rows.length} documents:\n`
+      + rows.map((r) => `    ${r.path}`).join('\n'));
+    process.stderr.write(
+      `${collisions.length} duplicate title(s) across ${documents.length} document(s). `
+      + 'A citation names a document by its TITLE, so two documents with one title can never be told apart '
+      + '— and a manifest written from them would resolve every citation to whichever row came first.\n'
+      + `${lines.join('\n')}\n`
+      + 'Disambiguate before ingesting: rename one of the files, or ingest them separately into different '
+      + 'output directories. Nothing was written.\n',
+    );
+    process.exit(1);
+  }
+
   try {
     mkdirSync(outDir, { recursive: true });
     for (const doc of documents) {
@@ -191,6 +223,7 @@ if (command === 'ingest') {
     kind: d.kind,
     sha256: d.sha256,
     bytes: d.bytes,
+    ingested_at: d.ingested_at,
     characters: d.text.length,
     textFile: d.textFile,
     warnings: d.warnings,
@@ -206,18 +239,18 @@ if (command === 'ingest') {
   // make a document citable that nobody ever opened, which is the single
   // failure `src/manifest.mjs` exists to prevent.
   //
-  // `ingested_at` is a REAL timestamp, taken once for the run. The source
-  // file's mtime was the reproducible alternative and was rejected: mtime is
-  // when a document was last WRITTEN, and putting that in a field named for
-  // when it was READ is a plausible-but-wrong value of exactly the kind this
-  // pipeline refuses everywhere else. The manifest is a per-run output, not a
-  // committed generated file, so losing byte-identical reruns costs nothing.
-  const ingestedAt = new Date().toISOString();
+  // `ingested_at` is a REAL timestamp, stamped PER DOCUMENT by `ingestFile` at
+  // the moment that document was read. The source file's mtime was the
+  // reproducible alternative and was rejected: mtime is when a document was
+  // last WRITTEN, and putting that in a field named for when it was READ is a
+  // plausible-but-wrong value of exactly the kind this pipeline refuses
+  // everywhere else. The manifest is a per-run output, not a committed
+  // generated file, so losing byte-identical reruns costs nothing.
   const manifestPathOut = join(outDir, 'evidence-manifest.json');
   try {
     writeFileSync(manifestPathOut, `${JSON.stringify({
       schema_version: 1,
-      documents: rows.map((row) => ({ ...row, ingested_at: ingestedAt })),
+      documents: rows,
     }, null, 2)}\n`, 'utf8');
   } catch (error) {
     process.stderr.write(`could not write the evidence manifest to ${manifestPathOut}: ${error.message}\n`);
@@ -295,6 +328,35 @@ if (command === 'visual-check') {
     findings: result.findings,
   };
 
+  /**
+   * What was MEASURED, in the same `reported of total` idiom the findings use.
+   *
+   * Without this a page whose only text sits on an unresolvable background
+   * prints "no horizontal overflow" and exits 0 — "nothing was measured"
+   * wearing the face of "nothing measured wrong". The human path must be able
+   * to tell those apart, not only the --json one.
+   */
+  function measuredLines(summary) {
+    const lines = [];
+    const text = summary.measured?.textElements;
+    const contrast = summary.measured?.contrast;
+    if (text && text.truncated > 0) {
+      lines.push(`${text.reported} of ${text.total} text element(s) were measured; `
+        + `${text.truncated} were withheld by the per-viewport cap of ${text.cap}.`);
+    }
+    if (contrast) {
+      lines.push(`contrast: ${contrast.reported} of ${contrast.total} text element(s) measured, `
+        + `${contrast.skipped} skipped.`);
+      for (const row of contrast.reasons.slice(0, 3)) {
+        lines.push(`  skipped because ${row.reason} (x${row.count})`);
+      }
+      if (contrast.skipped > contrast.listed) {
+        lines.push(`  ${contrast.listed} of ${contrast.skipped} skip reason(s) are listed; the rest are in --json.`);
+      }
+    }
+    return lines.length ? `${lines.join('\n')}\n` : '';
+  }
+
   // A receipt for an artifact with many findings runs to tens of kilobytes, and
   // `process.exit` does not wait for an async pipe write to drain — piping this
   // command into a consumer truncated the JSON at 8KB. Exit only once the
@@ -305,7 +367,8 @@ if (command === 'visual-check') {
     await flush(process.stdout, asJson
       ? `${JSON.stringify(receipt, null, 2)}\n`
       : `${result.viewports.map((v) => `${v.viewport.padEnd(10)} scrollWidth ${String(v.scrollWidth).padStart(5)} <= innerWidth ${v.innerWidth}`).join('\n')}\n`
-        + `no horizontal overflow at ${result.viewports.length} viewport(s). This proves bounded behaviour, not that the artifact is good.\n`);
+        + `no horizontal overflow at ${result.viewports.length} viewport(s). This proves bounded behaviour, not that the artifact is good.\n`
+        + measuredLines(result.summary));
     process.exit(0);
   }
 
@@ -327,7 +390,8 @@ if (command === 'visual-check') {
   await flush(process.stderr, asJson
     ? `${JSON.stringify(receipt, null, 2)}\n`
     : `${result.findings.map((f) => `${f.code}: ${f.message}\n  fix: ${f.supportedFixes[0]}`).join('\n')}\n`
-      + `\n${summary.reported} of ${summary.total} findings reported — ${withheld}\n${perCode}\n`);
+      + `\n${summary.reported} of ${summary.total} findings reported — ${withheld}\n${perCode}\n`
+      + measuredLines(summary));
   process.exit(1);
 }
 
@@ -371,9 +435,13 @@ if (command === 'render') {
   // verified one, and a failure receipt is read just as carefully as a success.
   const citationsVerified = Boolean(manifest);
   if (!result.ok) emitFailure(result.diagnostics, { citationsVerified });
+  // `ok` can be true with WARNING-severity diagnostics standing -- a cited
+  // source whose file has moved, or whose extraction recorded a decode
+  // warning. Printing a hardcoded empty array here threw those away at the
+  // last step, which made a warned source indistinguishable from a clean one.
   process.stdout.write(asJson
-    ? `${JSON.stringify({ schemaVersion: 1, ok: true, citationsVerified, diagnostics: [] }, null, 2)}\n`
-    : 'ok\n');
+    ? `${JSON.stringify({ schemaVersion: 1, ok: true, citationsVerified, diagnostics: result.diagnostics }, null, 2)}\n`
+    : `ok\n${result.diagnostics.map((d) => `${d.severity}: ${d.code}: ${d.message}\n  fix: ${d.supportedFixes[0] || 'none offered'}`).join('\n')}${result.diagnostics.length ? '\n' : ''}`);
 } else {
   const receipt = deliverCase(doc, output, options);
   // Taken from the receipt deliverCase already computed, rather than recomputed
@@ -381,5 +449,5 @@ if (command === 'render') {
   if (!receipt.ok) emitFailure(receipt.diagnostics, { citationsVerified: receipt.citationsVerified });
   process.stdout.write(asJson
     ? `${JSON.stringify({ schemaVersion: 1, ...receipt }, null, 2)}\n`
-    : `${receipt.artifact}\n`);
+    : `${receipt.artifact}\n${receipt.diagnostics.map((d) => `${d.severity}: ${d.code}: ${d.message}\n  fix: ${d.supportedFixes[0] || 'none offered'}`).join('\n')}${receipt.diagnostics.length ? '\n' : ''}`);
 }

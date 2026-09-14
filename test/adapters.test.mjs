@@ -1,24 +1,35 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 const read = (p) => readFileSync(new URL(p, import.meta.url), 'utf8');
 
-test('the generator is idempotent and adapters are in sync with SKILL.md', () => {
-  const before = [
-    read('../.github/copilot-instructions.md'),
-    read('../.github/prompts/value-story.prompt.md'),
-  ];
-  execFileSync('node', ['scripts/generate-adapters.mjs'], { cwd: root });
-  const after = [
-    read('../.github/copilot-instructions.md'),
-    read('../.github/prompts/value-story.prompt.md'),
-  ];
-  assert.deepEqual(after, before,
-    'adapters are stale — run `npm run build:adapters` and commit the result');
+const ADAPTERS = ['.github/copilot-instructions.md', '.github/prompts/value-story.prompt.md'];
+
+// Regenerate into a scratch directory and compare, rather than regenerating
+// in place. Regenerating in place would catch staleness exactly once and
+// then overwrite the evidence -- the rerun would pass, and `npm test` would
+// leave the working tree dirty.
+test('adapters are in sync with SKILL.md and the generator is idempotent', () => {
+  const out = mkdtempSync(join(tmpdir(), 'vs-adapters-'));
+  try {
+    execFileSync('node', ['scripts/generate-adapters.mjs'],
+      { cwd: root, env: { ...process.env, VS_OUTPUT_ROOT: out } });
+    for (const rel of ADAPTERS) {
+      assert.equal(
+        readFileSync(join(out, rel), 'utf8'),
+        readFileSync(join(root, rel), 'utf8'),
+        `${rel} is stale — run \`npm run build:adapters\` and commit the result`,
+      );
+    }
+  } finally {
+    rmSync(out, { recursive: true, force: true });
+  }
 });
 
 test('copilot instructions carry the full contract', () => {

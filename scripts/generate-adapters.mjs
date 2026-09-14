@@ -3,6 +3,10 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
+// Inputs are always read from the repository; only the DESTINATION is
+// overridable, so a drift test can regenerate into a scratch directory and
+// compare without mutating the working tree.
+const outRoot = process.env.VS_OUTPUT_ROOT || root;
 const skill = readFileSync(join(root, 'SKILL.md'), 'utf8');
 
 const START = '<!-- contract:start -->';
@@ -16,9 +20,9 @@ if (!body) {
 
 const BANNER = '<!-- Generated from SKILL.md by scripts/generate-adapters.mjs. Do not edit. -->';
 
-mkdirSync(join(root, '.github', 'prompts'), { recursive: true });
+mkdirSync(join(outRoot, '.github', 'prompts'), { recursive: true });
 
-writeFileSync(join(root, '.github', 'copilot-instructions.md'),
+writeFileSync(join(outRoot, '.github', 'copilot-instructions.md'),
 `${BANNER}
 
 # Value Story
@@ -30,7 +34,7 @@ is on your PATH.
 ${body}
 `);
 
-writeFileSync(join(root, '.github', 'prompts', 'value-story.prompt.md'),
+writeFileSync(join(outRoot, '.github', 'prompts', 'value-story.prompt.md'),
 `---
 mode: agent
 description: Build a validated HTML value narrative for an AI initiative.

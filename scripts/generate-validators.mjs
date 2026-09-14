@@ -5,6 +5,10 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
+// Schemas are always read from the repository; only the DESTINATION is
+// overridable, so a drift test can regenerate into a scratch directory and
+// compare without mutating the working tree.
+const outRoot = process.env.VS_OUTPUT_ROOT || root;
 const read = (name) => JSON.parse(readFileSync(join(root, 'schemas', name), 'utf8'));
 
 const ajv = new Ajv({
@@ -102,6 +106,6 @@ if (code === before) {
   );
 }
 
-mkdirSync(join(root, 'generated'), { recursive: true });
-writeFileSync(join(root, 'generated', 'validate-value-case.mjs'), code);
+mkdirSync(join(outRoot, 'generated'), { recursive: true });
+writeFileSync(join(outRoot, 'generated', 'validate-value-case.mjs'), code);
 process.stdout.write('generated/validate-value-case.mjs\n');

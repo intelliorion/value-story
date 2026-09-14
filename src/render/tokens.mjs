@@ -27,6 +27,7 @@ export const TOKENS = Object.freeze({
   '--vs-chapter': 'clamp(3rem, 6vh, 5rem)',
   '--vs-radius': '12px',
   '--vs-duration': '820ms',
+  '--vs-stagger': '70ms',
   '--vs-ease': 'cubic-bezier(0.16, 1, 0.3, 1)',
   '--vs-print-bg': '#FFFFFF',
   '--vs-print-ink': '#111111',

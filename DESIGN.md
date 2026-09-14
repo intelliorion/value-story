@@ -36,6 +36,7 @@ radius:
 motion:
   duration: "820ms"
   ease: "cubic-bezier(0.16, 1, 0.3, 1)"
+  stagger: "70ms"
 ---
 
 # Design

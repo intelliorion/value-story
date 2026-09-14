@@ -1,6 +1,7 @@
 import schemaValidate from '../generated/validate-value-case.mjs';
 import { semanticDiagnostics } from './semantic.mjs';
 import { reconcileDiagnostics } from './reconcile.mjs';
+import { motionDiagnostics } from './render/motion.mjs';
 import { manifestDiagnostics } from './manifest.mjs';
 import { renderCase } from './render/render-case.mjs';
 import { normalizedDiagnostic, applySuppression } from './diagnostics.mjs';
@@ -80,7 +81,9 @@ export function validateCase(doc, options = {}) {
   const manifest = manifestDiagnostics(doc, options.manifest);
   // Reconciliation stays gated on semantic diagnostics alone: it is derived
   // from rendered output, which manifest faults do not affect.
-  const reconcile = semantic.length ? [] : reconcileDiagnostics(doc, renderCase(doc));
-  const diagnostics = applySuppression([...semantic, ...manifest, ...reconcile]);
+  const html = semantic.length ? null : renderCase(doc);
+  const reconcile = html ? reconcileDiagnostics(doc, html) : [];
+  const motion = html ? motionDiagnostics(doc, html) : [];
+  const diagnostics = applySuppression([...semantic, ...manifest, ...reconcile, ...motion]);
   return { ok: diagnostics.every((d) => d.severity === 'warning'), diagnostics };
 }

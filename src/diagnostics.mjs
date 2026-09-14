@@ -52,24 +52,47 @@ export function withRecordingSuppressed(callback) {
   try {
     return callback();
   } finally {
-    suppressionDepth -= 1;
+    suppressionDepth = Math.max(0, suppressionDepth - 1);
   }
 }
 
 export function applySuppression(diagnostics) {
+  // Build a lookup of code → its suppresses list (Guard 1 preparation)
+  const suppressMap = new Map();
+  for (const d of diagnostics) {
+    suppressMap.set(d.code, d.suppresses || []);
+  }
+
   const suppressed = new Set();
   for (const d of diagnostics) {
     for (const code of d.suppresses || []) {
-      if (code !== d.code) suppressed.add(code);
+      // Guard 1: ignore reciprocal edges (A→B only if B doesn't also suppress A)
+      const targetSuppresses = suppressMap.get(code) || [];
+      if (code !== d.code && !targetSuppresses.includes(d.code)) {
+        suppressed.add(code);
+      }
     }
   }
-  return diagnostics.filter((d) => !suppressed.has(d.code));
+
+  const filtered = diagnostics.filter((d) => !suppressed.has(d.code));
+  // Guard 2: non-empty backstop (if result is empty but input wasn't, return input unchanged)
+  return filtered.length > 0 || diagnostics.length === 0 ? filtered : diagnostics;
 }
 
 export function throwDiagnosticError(message, diagnostics) {
-  for (const d of diagnostics || []) recordDiagnostic(d);
+  const normalized = (diagnostics || []).map(normalizedDiagnostic);
+  for (const d of normalized) recordDiagnostic(d);
+  // Dedupe by message and apply suppression to match collected()
+  const deduped = [];
+  const seen = new Set();
+  for (const d of normalized) {
+    if (!seen.has(d.message)) {
+      seen.add(d.message);
+      deduped.push(d);
+    }
+  }
   const error = new Error(message);
-  error.vsDiagnostics = (diagnostics || []).map(normalizedDiagnostic);
+  error.vsDiagnostics = applySuppression(deduped);
   throw error;
 }
 
@@ -97,6 +120,7 @@ export function fallbackDiagnostic(error, input) {
     message: error?.message || 'Renderer failed without a diagnostic.',
     subject: { input },
     evidence: { errorName: error?.name || 'Error' },
+    supportedFixes: ['this failure could not be automatically classified; report the input document and this message'],
   });
 }
 

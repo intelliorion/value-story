@@ -3,7 +3,7 @@ import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   normalizedDiagnostic, recordDiagnostic, collected, resetDiagnostics,
-  withRecordingSuppressed, applySuppression,
+  withRecordingSuppressed, applySuppression, throwDiagnosticError, fallbackDiagnostic,
 } from '../src/diagnostics.mjs';
 
 beforeEach(() => resetDiagnostics());
@@ -59,4 +59,70 @@ test('a suppressing diagnostic never suppresses itself', () => {
     normalizedDiagnostic({ code: 'a/b', message: 'm', suppresses: ['a/b'] }),
   ]);
   assert.equal(out.length, 1);
+});
+
+test('mutual suppression (a suppresses b AND b suppresses a) preserves both', () => {
+  const out = applySuppression([
+    normalizedDiagnostic({ code: 'a', message: 'msg-a', suppresses: ['b'] }),
+    normalizedDiagnostic({ code: 'b', message: 'msg-b', suppresses: ['a'] }),
+  ]);
+  assert.equal(out.length, 2);
+  assert.deepEqual(out.map((d) => d.code).sort(), ['a', 'b']);
+});
+
+test('three-way cycle (a→b→c→a) returns all three via backstop', () => {
+  const out = applySuppression([
+    normalizedDiagnostic({ code: 'a', message: 'msg-a', suppresses: ['b'] }),
+    normalizedDiagnostic({ code: 'b', message: 'msg-b', suppresses: ['c'] }),
+    normalizedDiagnostic({ code: 'c', message: 'msg-c', suppresses: ['a'] }),
+  ]);
+  assert.equal(out.length, 3);
+  assert.deepEqual(out.map((d) => d.code).sort(), ['a', 'b', 'c']);
+});
+
+test('normal acyclic suppression still works (root suppresses derived, only root survives)', () => {
+  const out = applySuppression([
+    normalizedDiagnostic({ code: 'root', message: 'msg-root', suppresses: ['derived'] }),
+    normalizedDiagnostic({ code: 'derived', message: 'msg-derived' }),
+  ]);
+  assert.equal(out.length, 1);
+  assert.equal(out[0].code, 'root');
+});
+
+test('resetDiagnostics inside withRecordingSuppressed does not corrupt depth', () => {
+  withRecordingSuppressed(() => {
+    resetDiagnostics();
+    recordDiagnostic({ code: 'a/b', message: 'inside-suppressed' });
+  });
+  // resetDiagnostics sets depth to 0, so inside-suppressed gets recorded
+  assert.equal(collected().length, 1);
+  recordDiagnostic({ code: 'c/d', message: 'outside' });
+  assert.equal(collected().length, 2);
+  // After exiting and re-entering, depth should be properly restored
+  withRecordingSuppressed(() => recordDiagnostic({ code: 'e/f', message: 'second-suppressed' }));
+  // second-suppressed should be suppressed (not recorded)
+  assert.equal(collected().length, 2);
+});
+
+test('throwDiagnosticError dedupes by message in error.vsDiagnostics', () => {
+  let error;
+  try {
+    throwDiagnosticError('failed', [
+      { code: 'a/b', message: 'dup' },
+      { code: 'c/d', message: 'dup' },
+      { code: 'e/f', message: 'unique' },
+    ]);
+  } catch (e) {
+    error = e;
+  }
+  assert.equal(error.vsDiagnostics.length, 2);
+  assert.deepEqual(error.vsDiagnostics.map((d) => d.message).sort(), ['dup', 'unique']);
+});
+
+test('fallbackDiagnostic for unclassified error has supportedFixes', () => {
+  const d = fallbackDiagnostic(new Error('weird'), 'input.json');
+  assert.equal(d.code, 'internal/unclassified');
+  assert(Array.isArray(d.supportedFixes));
+  assert(d.supportedFixes.length > 0);
+  assert.equal(typeof d.supportedFixes[0], 'string');
 });

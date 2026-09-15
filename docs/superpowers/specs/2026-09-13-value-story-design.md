@@ -320,6 +320,7 @@ claim/tier-missing          claim/driver-undeclared     claim/unit-missing
 claim/measured-no-baseline  claim/measured-no-evidence  claim/estimated-no-assumption
 claim/estimated-no-owner    claim/qualitative-has-number
 claim/direction-mismatch    claim/duplicate-id
+claim/measured-from-rubric  claim/measured-from-rating
 evidence/ref-unresolved     evidence/duplicate-ref      evidence/not-in-manifest
 evidence/manifest-stale     evidence/ambiguous-citation evidence/empty-extraction
 evidence/source-warning
@@ -328,6 +329,27 @@ motion/budget-exceeded
 layout/overflow             layout/collision            layout/contrast
 layout/hero-below-fold
 ```
+
+`claim/measured-from-rubric` is the guard for the failure this domain is
+shaped to produce. A portfolio record carries `effectiveness 4`,
+`efficiency 2` — real numbers, in a document that really was read, so every
+other check passes. They are a prioritisation judgement about what to build
+next, not a measurement of what changed.
+
+It is deliberately HIGH PRECISION and low recall. Blocking every unit
+containing "score" would refuse legitimate measured metrics: NPS, safety
+scores and audit scores are real things a firm measures. So the error fires
+only on unambiguous rubric vocabulary, and the rubric-dimension match is
+anchored to the whole field — "Effectiveness of triage routing" is a real
+metric and passes. `claim/measured-from-rating` carries the softer signal at
+WARNING severity: a rating-like unit moving between small integers, which is
+often a judgement and sometimes an honest metric. That one is a human call,
+so it asks rather than refuses.
+
+Neither fix suggests rewording the metric, which §5.1's prohibited repairs
+already rule out. The repairs are to name the business outcome the rubric was
+scoring, or to remove the claim and report that the benefit is not yet
+quantified.
 
 `claim/measured-no-evidence` enforces invariant 4 of §4.6 and the `measured`
 row of the §4.3 table: a `measured` claim whose `baseline` or `current` carries

@@ -273,3 +273,72 @@ test('a duplicate evidence ref is flagged at the later occurrence', () => {
   assert.equal(d.subject.pointer, '/evidence/1/ref');
   assert.equal(d.evidence.firstIndex, 0);
 });
+
+// A rubric score is the failure this domain is shaped to produce: a real
+// number, in a document that really was read, that is a prioritisation
+// judgement rather than a measurement. Every other check passes it.
+const rubricCase = (metric, unit, baseline, current) => ({
+  schema_version: 1,
+  meta: { title: 'case', period: '2026-01' },
+  initiative: { id: 'i', name: 'n' },
+  drivers: { primary: 'productivity' },
+  arc: { problem: { headline: 'h' }, capability: { headline: 'h' },
+    outcome: { headline: 'h', claim_refs: ['x'] }, significance: { headline: 'h' } },
+  claims: [{ id: 'x', tier: 'measured', driver: 'productivity', metric, unit, direction: 'increase',
+    baseline: { value: baseline, asof: '2026-01', evidence_ref: 'e' },
+    current: { value: current, asof: '2026-06', evidence_ref: 'e' } }],
+  evidence: [{ ref: 'e', kind: 'doc', title: 't', date: '2026-01-01' }],
+});
+const rubricCodes = (...args) => semanticDiagnostics(rubricCase(...args))
+  .filter((d) => d.code.startsWith('claim/measured-from'));
+
+test('a rubric score cannot be tiered measured', () => {
+  for (const [metric, unit, from, to] of [
+    ['Effectiveness rating', 'rubric points', 0, 4],
+    ['Effectiveness', 'points', 2, 4],
+    ['Priority Score', 'pts', 48, 58],
+    ['Integration complexity', '', 2, 3],
+  ]) {
+    const found = rubricCodes(metric, unit, from, to);
+    assert.equal(found.length, 1, `${metric} / ${unit} must be refused`);
+    assert.equal(found[0].code, 'claim/measured-from-rubric');
+    assert.equal(found[0].severity, 'error');
+  }
+});
+
+// The guard is only worth having if it does not refuse real metrics. Blocking
+// every unit containing "score" would take NPS and safety scores with it.
+test('legitimate measured metrics are not refused', () => {
+  for (const [metric, unit, from, to] of [
+    ['Median days to first draft', 'days', 9, 4],
+    ['Net promoter score', 'score', 32, 48],
+    ['Safety observation score', 'score', 78, 91],
+    ['Control exceptions', 'count', 18, 3],
+    // The rubric-dimension match is anchored to the whole field, so a real
+    // metric that merely contains the word survives.
+    ['Effectiveness of triage routing', 'cases/week', 40, 62],
+  ]) {
+    assert.deepEqual(rubricCodes(metric, unit, from, to), [],
+      `${metric} / ${unit} is a real metric and must pass`);
+  }
+});
+
+test('a small-integer rating warns but never refuses', () => {
+  const found = rubricCodes('Maturity level', 'level', 2, 4);
+  assert.equal(found.length, 1);
+  assert.equal(found[0].code, 'claim/measured-from-rating');
+  assert.equal(found[0].severity, 'warning', 'a maturity level may be the honest metric; that is a human call');
+});
+
+test('the rubric fixes never suggest rewording, which is a prohibited repair', () => {
+  const fixes = rubricCodes('Effectiveness', 'rubric points', 0, 4)[0].supportedFixes.join(' ');
+  assert.doesNotMatch(fixes, /reword|rephrase|rename the metric/i);
+  assert.match(fixes, /not yet quantified/);
+});
+
+test('only measured claims are checked: an estimated rubric figure is a different problem', () => {
+  const doc = rubricCase('Effectiveness', 'rubric points', 0, 4);
+  doc.claims[0].tier = 'estimated';
+  doc.claims[0].assumption = { statement: 'assessor judgement', owner: 'Portfolio office' };
+  assert.deepEqual(semanticDiagnostics(doc).filter((d) => d.code === 'claim/measured-from-rubric'), []);
+});

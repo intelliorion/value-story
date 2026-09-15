@@ -1,5 +1,8 @@
 import { isDriver } from './drivers.mjs';
 import { normalizedDiagnostic } from './diagnostics.mjs';
+// normalizeTier is the single authority on what a claim's tier IS; comparing
+// `claim.tier` raw here would re-derive the same semantics in a second place.
+import { normalizeTier } from './render/claim-card.mjs';
 
 export function semanticDiagnostics(doc) {
   const out = [];
@@ -179,6 +182,73 @@ export function semanticDiagnostics(doc) {
         `correct /claims/${i}/baseline/value or /claims/${i}/current/value if a figure is wrong`,
       ],
     });
+  });
+
+  // A RUBRIC SCORE IS NOT A BUSINESS RESULT.
+  //
+  // This is the failure this domain is shaped to produce. A portfolio record
+  // carries `effectiveness 4`, `efficiency 2` -- real numbers, in a document
+  // that really was read, so every other check passes. They are a
+  // prioritisation judgement about what to build next, not a measurement of
+  // what changed. Promoting one manufactures a business result out of a
+  // routing decision, and it does it while looking perfectly sourced.
+  //
+  // The check is deliberately HIGH PRECISION and low recall. Blocking every
+  // unit containing "score" would refuse legitimate measured metrics -- safety
+  // scores, NPS, audit scores are real things a firm measures. So the error
+  // fires only on vocabulary that is unambiguously a scoring rubric, and the
+  // softer signal is a warning that asks a human to look rather than refusing.
+  const RUBRIC_WORD = /\brubrics?\b|\b(priority|routing)\s+score\b|\bweighted\s+(pts|points)\b/i;
+  // The dimensions of the stakeholders' own rubric. As a METRIC these name a
+  // judgement; as part of a longer metric ("effectiveness of triage") they do
+  // not, so the match is anchored to the whole field.
+  const RUBRIC_DIMENSION = /^\s*(effectiveness|efficiency|priority|urgency|user\s*scale|effort(\s*complexity)?|impact\s*of\s*failure|data\s*sensitivity|integration\s*complexity)(\s*(score|rating|level))?\s*$/i;
+  const RATING_UNIT = /\b(score|rating|points?|pts|level|band|grade)\b/i;
+
+  claims.forEach((claim, i) => {
+    if (normalizeTier(claim) !== 'measured') return;
+    const metric = String(claim?.metric || '');
+    const unit = String(claim?.unit || '');
+    const hit = [metric, unit].find((v) => RUBRIC_WORD.test(v))
+      || (RUBRIC_DIMENSION.test(metric) ? metric : undefined);
+
+    if (hit !== undefined) {
+      push({
+        code: 'claim/measured-from-rubric',
+        message: `Claim ${JSON.stringify(claim.id)} is tiered "measured" but ${JSON.stringify(hit)} names a scoring rubric. `
+          + 'A rubric score is a prioritisation judgement about what to build next, not a measurement of what changed. '
+          + 'It is a real number in a real document, which is exactly why nothing else here catches it.',
+        subject: { pointer: `/claims/${i}/tier`, collection: 'claims', index: i, id: claim.id, matched: hit },
+        evidence: { metric, unit, tier: 'measured' },
+        supportedFixes: [
+          `set /claims/${i}/metric and the figures to the business outcome the rubric was scoring, if that outcome was measured`,
+          `remove this claim from /claims and say in the report that the benefit is not yet quantified`,
+        ],
+      });
+      return;
+    }
+
+    // A judgement dressed as a measurement: a rating-like unit moving between
+    // small integers. NPS and CSAT sit outside this range, which is why the
+    // bound is there. A warning, never a refusal -- a maturity level really
+    // may be the honest metric, and that is a human call.
+    const from = claim?.baseline?.value;
+    const to = claim?.current?.value;
+    const smallInteger = (v) => Number.isInteger(v) && v >= 0 && v <= 10;
+    if (RATING_UNIT.test(unit) && smallInteger(from) && smallInteger(to)) {
+      push({
+        code: 'claim/measured-from-rating',
+        severity: 'warning',
+        message: `Claim ${JSON.stringify(claim.id)} is tiered "measured" on a unit of ${JSON.stringify(unit)} moving ${from} to ${to}. `
+          + 'A small-integer rating is often a judgement rather than a measurement. Confirm the source REPORTS this as an observation.',
+        subject: { pointer: `/claims/${i}/tier`, collection: 'claims', index: i, id: claim.id },
+        evidence: { unit, baseline: from, current: to, range: '0-10 integers' },
+        supportedFixes: [
+          `confirm the cited source reports ${JSON.stringify(unit)} as an observation, and leave /claims/${i}/tier as "measured"`,
+          `set /claims/${i}/tier to "estimated" and name an owner in /claims/${i}/assumption/owner, if it is a judgement somebody made`,
+        ],
+      });
+    }
   });
 
   for (const slot of ['problem', 'capability', 'significance']) {

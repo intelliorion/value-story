@@ -5,6 +5,7 @@ import { heroDelta, HERO_CSS } from './delta.mjs';
 import { constellation, CONSTELLATION_CSS } from './constellation.mjs';
 import { chapters, CHAPTERS_CSS } from './chapters.mjs';
 import { MOTION_CSS, MOTION_OFF_CSS, motionProfile } from './motion.mjs';
+import { leadership, LEADERSHIP_CSS } from './leadership.mjs';
 
 const BASE_CSS = `
 *{box-sizing:border-box}
@@ -77,6 +78,7 @@ export function renderCase(doc) {
   const hero = pickHeroClaim(doc, claimsById);
   const styles = [
     tokensToCss(), BASE_CSS, HERO_CSS, CHAPTERS_CSS, CLAIM_CARD_CSS, CONSTELLATION_CSS,
+    LEADERSHIP_CSS,
     // A `static` profile omits the entry animations AND disables whatever any
     // other stylesheet declared, so the promise does not depend on compliance.
     motionProfile(doc) === 'static' ? MOTION_OFF_CSS : MOTION_CSS,
@@ -91,6 +93,7 @@ export function renderCase(doc) {
 ${metaRow(doc)}
 ${heroHtml}
 ${chapters(doc.arc, claimsById, { outcomeHeadlineInHero: heroHtml !== '' })}
+${leadership(doc)}
 <section class="vs-drivers"><div class="vs-wrap">
 <h2>Value drivers claimed</h2>
 ${constellation(doc.drivers)}

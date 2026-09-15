@@ -6,8 +6,8 @@ import { ARC_SLOTS, CHAPTERS_CSS } from '../src/render/chapters.mjs';
 
 const doc = {
   schema_version: 1,
-  meta: { title: 'Intake Triage', owner: 'K. Lindqvist', period: '2026-08', motion: 'entry' },
-  initiative: { id: 'int-01', name: 'Intake Triage', sponsor: 'S. Tzou', function: 'Ops', status: 'live' },
+  meta: { title: 'Intake Triage', owner: 'Head of Legal Operations', period: '2026-08', motion: 'entry' },
+  initiative: { id: 'int-01', name: 'Intake Triage', sponsor: 'Head of Operations', function: 'Ops', status: 'live' },
   drivers: { primary: 'labor-cost-efficiency', secondary: ['productivity'] },
   arc: {
     problem: { headline: 'Intake took three days', detail: 'Manual triage.', evidence_refs: ['e1'] },

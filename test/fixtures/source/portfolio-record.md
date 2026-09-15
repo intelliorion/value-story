@@ -1,7 +1,7 @@
 # Portfolio Record — Contract Review Assistant
 
 - Initiative ID: cra-01
-- Sponsor: R. Alvarez, Head of Legal Operations
+- Sponsor: Head of Legal Operations, Head of Legal Operations
 - Function: Legal Operations
 - Status: pilot
 - Review period: 2026-08

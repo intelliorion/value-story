@@ -193,8 +193,8 @@ const TITLES = {
 function authoredCase() {
   return {
     schema_version: 1,
-    meta: { title: 'Contract Review Assistant', owner: 'R. Alvarez', period: '2026-08', quality_profile: 'draft', motion: 'static' },
-    initiative: { id: 'cra-01', name: 'Contract Review Assistant', sponsor: 'R. Alvarez', function: 'Legal Operations', status: 'pilot' },
+    meta: { title: 'Contract Review Assistant', owner: 'Head of Legal Operations', period: '2026-08', quality_profile: 'draft', motion: 'static' },
+    initiative: { id: 'cra-01', name: 'Contract Review Assistant', sponsor: 'Head of Legal Operations', function: 'Legal Operations', status: 'pilot' },
     drivers: { primary: 'process-cost-efficiency', secondary: ['productivity', 'governance-oversight'] },
     arc: {
       problem: {
@@ -237,7 +237,7 @@ function authoredCase() {
     evidence: [
       { ref: 'e1', kind: 'doc', title: TITLES.status, author: 'Legal Operations', date: '2026-08-10', locator: 'paragraph 2' },
       { ref: 'e2', kind: 'doc', title: TITLES.deck, author: 'Legal Operations', date: '2026-08-18', locator: 'slide 2' },
-      { ref: 'e3', kind: 'email', title: TITLES.thread, author: 'Dana Whitfield', date: '2026-08-12', locator: 'message body' },
+      { ref: 'e3', kind: 'email', title: TITLES.thread, author: 'Legal Operations Lead', date: '2026-08-12', locator: 'message body' },
       { ref: 'e4', kind: 'dataset', title: TITLES.metrics, author: 'Legal Operations', date: '2026-08-30', locator: 'contract turnaround time; contracts reviewed per reviewer per week rows' },
       { ref: 'e5', kind: 'doc', title: TITLES.portfolio, author: 'Portfolio Committee', date: '2026-08-20', locator: 'Notes section' },
     ],

@@ -2,7 +2,7 @@
   "schema_version": 1,
   "meta": {
     "title": "Continuous Commissioning",
-    "owner": "K. Lindqvist",
+    "owner": "Head of Legal Operations",
     "period": "2026-08",
     "quality_profile": "showcase",
     "motion": "entry"
@@ -72,7 +72,7 @@
       "current": { "value": 26, "asof": "2026-08" },
       "assumption": {
         "statement": "assumes the pilot estate's fault profile is representative of the wider portfolio, and that callout volume scales with detected faults rather than with occupancy",
-        "owner": "R. Whitfield, Property Operations"
+        "owner": "Property Operations Lead"
       }
     },
     {

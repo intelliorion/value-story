@@ -26,7 +26,7 @@ const estimated = {
   unit: 'cases/week', tier: 'estimated', direction: 'increase',
   baseline: { value: 40, asof: '2026-01' },
   current: { value: 55, asof: '2026-08' },
-  assumption: { statement: 'assumes steady case mix', owner: 'A. Reviewer' },
+  assumption: { statement: 'assumes steady case mix', owner: 'Review Team Lead' },
 };
 
 const qualitative = {
@@ -53,7 +53,7 @@ test('measured claims carry the measured class and cite evidence', () => {
 test('estimated claims are marked and name the owner', () => {
   const html = claimCard(estimated);
   assert.ok(html.includes('vs-claim--estimated'));
-  assert.ok(html.includes('A. Reviewer'), 'the owner must be visible');
+  assert.ok(html.includes('Review Team Lead'), 'the owner must be visible');
   assert.ok(html.includes('assumes steady case mix'));
   assert.ok(!html.includes('vs-claim--measured'));
 });

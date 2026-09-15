@@ -464,7 +464,7 @@ const estimated = {
   unit: 'cases/week', tier: 'estimated', direction: 'increase',
   baseline: { value: 40, asof: '2026-01' },
   current: { value: 55, asof: '2026-08' },
-  assumption: { statement: 'assumes steady case mix', owner: 'A. Reviewer' },
+  assumption: { statement: 'assumes steady case mix', owner: 'Review Team Lead' },
 };
 
 const qualitative = {
@@ -491,7 +491,7 @@ test('measured claims carry the measured class and cite evidence', () => {
 test('estimated claims are marked and name the owner', () => {
   const html = claimCard(estimated);
   assert.ok(html.includes('vs-claim--estimated'));
-  assert.ok(html.includes('A. Reviewer'), 'the owner must be visible');
+  assert.ok(html.includes('Review Team Lead'), 'the owner must be visible');
   assert.ok(html.includes('assumes steady case mix'));
   assert.ok(!html.includes('vs-claim--measured'));
 });
@@ -932,8 +932,8 @@ import { ARC_SLOTS } from '../src/render/chapters.mjs';
 
 const doc = {
   schema_version: 1,
-  meta: { title: 'Intake Triage', owner: 'K. Lindqvist', period: '2026-08', motion: 'entry' },
-  initiative: { id: 'int-01', name: 'Intake Triage', sponsor: 'S. Tzou', function: 'Ops', status: 'live' },
+  meta: { title: 'Intake Triage', owner: 'Head of Legal Operations', period: '2026-08', motion: 'entry' },
+  initiative: { id: 'int-01', name: 'Intake Triage', sponsor: 'Head of Operations', function: 'Ops', status: 'live' },
   drivers: { primary: 'labor-cost-efficiency', secondary: ['productivity'] },
   arc: {
     problem: { headline: 'Intake took three days', detail: 'Manual triage.', evidence_refs: ['e1'] },
@@ -1232,9 +1232,9 @@ The fixture is **synthetic**. Replace its content with a real initiative during 
 ```json
 {
   "schema_version": 1,
-  "meta": { "title": "Intake Triage", "owner": "K. Lindqvist", "period": "2026-08",
+  "meta": { "title": "Intake Triage", "owner": "Head of Legal Operations", "period": "2026-08",
             "quality_profile": "showcase", "motion": "entry" },
-  "initiative": { "id": "int-01", "name": "Intake Triage", "sponsor": "S. Tzou",
+  "initiative": { "id": "int-01", "name": "Intake Triage", "sponsor": "Head of Operations",
                   "function": "Operations", "status": "live" },
   "drivers": { "primary": "labor-cost-efficiency",
                "secondary": ["productivity", "governance-oversight"] },
@@ -1269,7 +1269,7 @@ The fixture is **synthetic**. Replace its content with a real initiative during 
       "baseline": { "value": 40, "asof": "2026-01" },
       "current":  { "value": 55, "asof": "2026-08" },
       "assumption": { "statement": "assumes steady case mix across both periods",
-                      "owner": "M. Behbahani" } },
+                      "owner": "Finance Business Partner" } },
     { "id": "c3", "driver": "governance-oversight", "tier": "qualitative",
       "statement": "every routing decision now carries an auditable rationale trail",
       "evidence_ref": "e4" }

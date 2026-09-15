@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
-  "meta": { "title": "Intake Triage", "owner": "K. Lindqvist", "period": "2026-08",
+  "meta": { "title": "Intake Triage", "owner": "Head of Legal Operations", "period": "2026-08",
             "quality_profile": "showcase", "motion": "entry" },
-  "initiative": { "id": "int-01", "name": "Intake Triage", "sponsor": "S. Tzou",
+  "initiative": { "id": "int-01", "name": "Intake Triage", "sponsor": "Head of Operations",
                   "function": "Operations", "status": "live" },
   "drivers": { "primary": "labor-cost-efficiency",
                "secondary": ["productivity", "governance-oversight"] },
@@ -37,7 +37,7 @@
       "baseline": { "value": 40, "asof": "2026-01" },
       "current":  { "value": 55, "asof": "2026-08" },
       "assumption": { "statement": "assumes steady case mix across both periods",
-                      "owner": "M. Behbahani" } },
+                      "owner": "Finance Business Partner" } },
     { "id": "c3", "driver": "governance-oversight", "tier": "qualitative",
       "statement": "every routing decision now carries an auditable rationale trail",
       "evidence_ref": "e4" }

@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
-  "meta": { "title": "Claims Backlog Clearance", "owner": "R. Okafor", "period": "2026-07",
+  "meta": { "title": "Claims Backlog Clearance", "owner": "Head of Shared Services", "period": "2026-07",
             "quality_profile": "showcase", "motion": "entry" },
-  "initiative": { "id": "int-02", "name": "Claims Backlog Clearance", "sponsor": "D. Marsh",
+  "initiative": { "id": "int-02", "name": "Claims Backlog Clearance", "sponsor": "Head of Claims Operations",
                   "function": "Operations", "status": "live" },
   "drivers": { "primary": "process-cost-efficiency",
                "secondary": ["productivity", "governance-oversight"] },

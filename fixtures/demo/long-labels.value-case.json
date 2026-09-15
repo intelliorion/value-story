@@ -1,11 +1,11 @@
 {
   "schema_version": 1,
   "meta": { "title": "Cross-Jurisdictional Regulatory Filing Preparation and Reconciliation Program",
-            "owner": "Constance Abimbola Okonkwo-Whitfield", "period": "2026-04",
+            "owner": "Head of Compliance Operations", "period": "2026-04",
             "quality_profile": "showcase", "motion": "entry" },
   "initiative": { "id": "int-06",
                   "name": "Cross-Jurisdictional Regulatory Filing Preparation and Reconciliation Program",
-                  "sponsor": "Bartholomew Featherstonehaugh-Nakamura",
+                  "sponsor": "Interim Director of Cross-Functional Compliance Assurance",
                   "function": "Compliance", "status": "live" },
   "drivers": { "primary": "governance-oversight",
                "secondary": ["standardization-knowledge"] },
@@ -49,6 +49,6 @@
     { "ref": "e3", "kind": "dataset", "title": "Post-Submission Discrepancy Register",
       "author": "Compliance Operations", "date": "2026-04-30", "locator": "discrepancy_register_quarterly" },
     { "ref": "e4", "kind": "interview", "title": "Cross-Jurisdictional Preparer Feedback Session",
-      "author": "Constance Abimbola Okonkwo-Whitfield", "date": "2026-04-18", "locator": "notes" }
+      "author": "Head of Compliance Operations", "date": "2026-04-18", "locator": "notes" }
   ]
 }

@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
-  "meta": { "title": "Vendor Contract Review Assist", "owner": "L. Fenwick", "period": "2026-06",
+  "meta": { "title": "Vendor Contract Review Assist", "owner": "Head of Claims Operations", "period": "2026-06",
             "quality_profile": "showcase", "motion": "entry" },
-  "initiative": { "id": "int-03", "name": "Vendor Contract Review Assist", "sponsor": "P. Adeyemi",
+  "initiative": { "id": "int-03", "name": "Vendor Contract Review Assist", "sponsor": "Finance Business Partner",
                   "function": "Legal", "status": "pilot" },
   "drivers": { "primary": "high-value-skills-ip",
                "secondary": ["process-cost-efficiency", "operational-adaptability"] },
@@ -37,19 +37,19 @@
       "baseline": { "value": 9, "asof": "2026-01" },
       "current":  { "value": 22, "asof": "2026-06" },
       "assumption": { "statement": "assumes the pilot cohort's contract mix is representative of the full docket",
-                      "owner": "P. Adeyemi" } },
+                      "owner": "Finance Business Partner" } },
     { "id": "c3", "driver": "operational-adaptability", "metric": "contracts the team can absorb without new hires",
       "unit": "contracts/quarter", "tier": "estimated", "direction": "increase",
       "baseline": { "value": 400, "asof": "2026-01" },
       "current":  { "value": 900, "asof": "2026-06" },
       "assumption": { "statement": "assumes deviation-flagging accuracy holds as contract volume scales",
-                      "owner": "L. Fenwick" } },
+                      "owner": "Head of Claims Operations" } },
     { "id": "c4", "driver": "high-value-skills-ip", "metric": "clause deviations caught before signature",
       "unit": "deviations/quarter", "tier": "estimated", "direction": "increase",
       "baseline": { "value": 14, "asof": "2026-01" },
       "current":  { "value": 38, "asof": "2026-06" },
       "assumption": { "statement": "assumes flagged deviations that reached signature review were previously missed, not merely unrecorded",
-                      "owner": "T. Osei" } }
+                      "owner": "Operations Analytics Lead" } }
   ],
   "evidence": [
     { "ref": "e1", "kind": "doc", "title": "Legal ops capacity review", "author": "Legal Ops",

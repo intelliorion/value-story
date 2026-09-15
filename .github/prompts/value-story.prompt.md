@@ -66,7 +66,7 @@ Every claim declares its evidence strength. Choose the tier the source supports,
 
 `measured` requires the cited source to REPORT the figure as an observation — a dataset, a metered reading, a counted extract, a query with an answer behind it. A figure stated in a deck, a status update, a proposal or an email with nothing behind it is `estimated`, and it needs a named owner. When neither holds it is `qualitative`, or it is not a claim at all.
 
-Name a real person in `assumption.owner` — one the source actually names, never an invented plausible-sounding one. If nobody will own the estimate, it is not an estimate — make it qualitative.
+Name the person or role that owns the estimate in `assumption.owner` — one the source actually names, never an invented plausible-sounding one. A role ("Head of Claims Operations") is a valid owner; "the portfolio norm" is not, because nobody can be asked about it. If nobody will own the estimate, it is not an estimate — make it qualitative.
 
 ## Reading a portfolio record
 

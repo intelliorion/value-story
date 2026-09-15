@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
-  "meta": { "title": "Incident Postmortem Assistant", "owner": "N. Vasquez", "period": "2026-05",
+  "meta": { "title": "Incident Postmortem Assistant", "owner": "Head of Knowledge Services", "period": "2026-05",
             "quality_profile": "showcase", "motion": "entry" },
-  "initiative": { "id": "int-04", "name": "Incident Postmortem Assistant", "sponsor": "K. Lindqvist",
+  "initiative": { "id": "int-04", "name": "Incident Postmortem Assistant", "sponsor": "Head of Legal Operations",
                   "function": "Engineering", "status": "pilot" },
   "drivers": { "primary": "standardization-knowledge",
                "secondary": ["governance-oversight"] },
@@ -40,7 +40,7 @@
       "date": "2026-02-04", "locator": "notes" },
     { "ref": "e2", "kind": "doc", "title": "Postmortem assistant design note", "author": "Eng",
       "date": "2026-03-11", "locator": "page 1" },
-    { "ref": "e3", "kind": "interview", "title": "SRE lead feedback session", "author": "K. Lindqvist",
+    { "ref": "e3", "kind": "interview", "title": "SRE lead feedback session", "author": "Head of Legal Operations",
       "date": "2026-05-20", "locator": "notes" }
   ]
 }

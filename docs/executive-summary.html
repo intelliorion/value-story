@@ -1,0 +1,277 @@
+<title>Value Story</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600&family=Figtree:wght@300;400;600&family=IBM+Plex+Mono:wght@400&display=swap">
+<style>
+/* Single, deliberate light theme. Every colour is painted explicitly so the
+   page holds on any host background. */
+:root{
+  --paper:#F6F7F8; --card:#FFFFFF; --sunk:#ECEEF0; --rule:#DDE0E3;
+  --ink:#16181B; --dim:#5D6268; --faint:#9BA0A6;
+  --acc:#8A2E3C; --acc-soft:#F6EBED;
+  --d:"Fraunces",Georgia,serif;
+  --b:"Figtree",system-ui,-apple-system,sans-serif;
+  --m:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--b);
+  font-size:16.5px;line-height:1.6;-webkit-font-smoothing:antialiased}
+.wrap{max-width:860px;margin:0 auto;padding:0 28px 96px}
+.col{max-width:62ch}
+
+.head{padding:72px 0 40px}
+.eyebrow{font-family:var(--m);font-size:11px;letter-spacing:.17em;text-transform:uppercase;
+  color:var(--acc);margin:0 0 24px}
+h1{font-family:var(--d);font-weight:600;font-size:clamp(40px,6.4vw,66px);line-height:1.04;
+  letter-spacing:-.02em;margin:0;text-wrap:balance}
+.stand{font-size:21px;line-height:1.48;font-weight:300;color:var(--dim);
+  margin:24px 0 0;max-width:46ch}
+.stand b{color:var(--ink);font-weight:400}
+
+section{padding:44px 0;border-top:1px solid var(--rule)}
+h2{font-family:var(--d);font-weight:600;font-size:clamp(23px,2.7vw,30px);line-height:1.15;
+  letter-spacing:-.014em;margin:0 0 14px;text-wrap:balance}
+h3{font-family:var(--b);font-weight:600;font-size:16px;margin:0 0 5px}
+p{margin:0 0 15px}
+.lede{font-size:18.5px;line-height:1.5;font-weight:300;color:var(--dim);margin-bottom:20px}
+.lede b{color:var(--ink);font-weight:400}
+strong{font-weight:600}
+code{font-family:var(--m);font-size:.85em;background:var(--sunk);padding:.1em .38em;border-radius:3px}
+
+.pull{font-family:var(--d);font-size:clamp(21px,2.6vw,27px);line-height:1.3;font-weight:400;
+  color:var(--ink);border-left:3px solid var(--acc);padding:4px 0 4px 22px;margin:26px 0;max-width:34ch}
+
+figure{margin:30px 0}
+.figbox{background:var(--card);border:1px solid var(--rule);border-radius:10px;
+  padding:26px 24px 18px;overflow-x:auto}
+figure svg{display:block;width:100%;height:auto;min-width:560px}
+figcaption{font-size:13.5px;line-height:1.5;color:var(--dim);margin-top:12px;max-width:58ch}
+svg text{font-family:var(--b);font-size:12px;fill:var(--ink)}
+svg .s{font-size:10.5px;fill:var(--dim)}
+svg .t{font-family:var(--m);font-size:10px;letter-spacing:.12em;fill:var(--dim)}
+svg .acc{fill:var(--acc)} svg .sunk{fill:var(--sunk)} svg .inkf{fill:var(--ink)}
+svg .bx{fill:none;stroke:var(--rule);stroke-width:1.5}
+svg .bxd{fill:none;stroke:var(--faint);stroke-width:1.5;stroke-dasharray:5 4}
+
+.steps{counter-reset:s;margin:24px 0 0;padding:0;list-style:none}
+.steps li{counter-increment:s;position:relative;padding:0 0 22px 46px;
+  border-left:1px solid var(--rule);margin-left:13px}
+.steps li:last-child{border-left-color:transparent;padding-bottom:0}
+.steps li::before{content:counter(s);position:absolute;left:-13px;top:-2px;
+  width:26px;height:26px;border-radius:50%;background:var(--acc);color:#fff;
+  font-family:var(--m);font-size:11px;display:flex;align-items:center;justify-content:center}
+.steps p{margin:0;color:var(--dim);font-size:15.5px}
+.steps h3{margin-bottom:3px}
+
+.qs{list-style:none;padding:0;margin:20px 0 0}
+.qs li{display:flex;gap:14px;align-items:baseline;padding:11px 0;border-bottom:1px solid var(--rule);font-size:16px}
+.qs li:last-child{border-bottom:0}
+.qs .n{font-family:var(--m);font-size:11px;color:var(--faint);flex:none;width:18px}
+
+.two{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,270px),1fr));
+  gap:1px;background:var(--rule);border:1px solid var(--rule);border-radius:10px;
+  overflow:hidden;margin:26px 0}
+.cell{background:var(--card);padding:20px 20px 22px}
+.cell p{font-size:15px;color:var(--dim);margin:0}
+.tag{font-family:var(--m);font-size:10px;letter-spacing:.14em;text-transform:uppercase;
+  display:block;margin-bottom:9px}
+.cell.y .tag{color:var(--acc)} .cell.n .tag{color:var(--faint)}
+
+pre{background:var(--card);border:1px solid var(--rule);border-radius:10px;
+  padding:16px 18px;overflow-x:auto;font-family:var(--m);font-size:12.5px;
+  line-height:1.7;margin:20px 0;color:var(--ink)}
+.foot{border-top:1px solid var(--rule);margin-top:8px;padding-top:22px;
+  font-family:var(--m);font-size:11.5px;color:var(--dim)}
+.foot a{color:var(--acc)}
+@media (max-width:600px){body{font-size:16px}.head{padding-top:52px}}
+</style>
+
+<div class="wrap">
+
+<div class="head">
+  <p class="eyebrow">Executive summary</p>
+  <h1>Value Story</h1>
+  <p class="stand">A prompt skill that turns the documents about an AI initiative into a narrative for leadership — where <b>every number can be traced to a document somebody actually read</b>, and the gaps are named instead of filled in.</p>
+</div>
+
+<section>
+  <h2>The problem it addresses</h2>
+  <p class="lede col">Initiative write-ups drift toward confident numbers with nothing behind them. Not through dishonesty — through <b>ordinary rounding-up under deadline</b>. A rubric score becomes a result. An assumption becomes a saving. A figure appears in a headline and nobody can say where it came from.</p>
+  <p class="col">The cost lands later: a partner asks where a number came from in a room where the answer matters, and there isn't one.</p>
+  <div class="pull">Anyone can produce a confident page. The hard part is a page that admits what it doesn't know.</div>
+</section>
+
+<section>
+  <h2>How it works</h2>
+  <ol class="steps">
+    <li><h3>Read the documents, and list what you read</h3><p>If you didn't open it, you may not cite it.</p></li>
+    <li><h3>Write the claim table before any prose</h3><p>Every number exists as data — with a tier, a source and an owner — before it exists as a sentence.</p></li>
+    <li><h3>Write the four chapters around it</h3><p>What problem existed · what capability AI unlocked · what outcome changed · why it matters to the firm. Only the third carries figures.</p></li>
+    <li><h3>Answer leadership's five questions, including the ones you can't</h3><p>An unanswered question is reported, never quietly dropped.</p></li>
+  </ol>
+</section>
+
+<section>
+  <h2>Claims are typed by the evidence behind them</h2>
+  <p class="lede col">This is the mechanism. A claim declares how strong its evidence is, and each strength <b>looks different on the page</b> — so a reader who never learns the vocabulary still sees that the third card is a different kind of thing.</p>
+
+  <figure>
+    <div class="figbox">
+      <svg viewBox="0 0 700 176" role="img" aria-label="The three claim tiers rendered as distinct shapes. Measured shows a before and an after bar with a delta and requires a cited source. Estimated shows a range band and requires the assumption stated and an owner named. Qualitative shows a sentence and carries no figure at all.">
+        <rect x="0" y="0" width="216" height="130" rx="8" class="bx"/>
+        <text x="18" y="26" class="t">MEASURED</text>
+        <rect x="18" y="42" width="120" height="9" rx="2" class="sunk"/>
+        <rect x="18" y="60" width="46" height="9" rx="2" class="acc"/>
+        <text x="18" y="98" class="inkf" style="font-family:var(--d);font-size:26px;font-weight:600">−62%</text>
+        <text x="18" y="118" class="s">a real before and after, from a cited source</text>
+
+        <rect x="242" y="0" width="216" height="130" rx="8" class="bxd"/>
+        <text x="260" y="26" class="t">ESTIMATED</text>
+        <line x1="260" y1="56" x2="440" y2="56" stroke="var(--rule)" stroke-width="1.5"/>
+        <rect x="312" y="45" width="78" height="22" rx="3" class="sunk"/>
+        <text x="260" y="98" class="inkf" style="font-family:var(--d);font-size:24px;font-weight:600">~£180k</text>
+        <text x="260" y="118" class="s">a range, the assumption stated, an owner named</text>
+
+        <rect x="484" y="0" width="216" height="130" rx="8" class="bx" stroke-dasharray="2 4"/>
+        <text x="502" y="26" class="t">QUALITATIVE</text>
+        <text x="502" y="52" style="font-size:13px">Reviewers now see every</text>
+        <text x="502" y="70" style="font-size:13px">exception before sign-off,</text>
+        <text x="502" y="88" style="font-size:13px">not after.</text>
+        <text x="502" y="118" class="s">a sentence, and no figure at all</text>
+
+        <text x="0" y="162" class="s">A number that cannot earn one of these three does not go on the page.</text>
+      </svg>
+    </div>
+    <figcaption>The tier is not a badge to skim past — it changes what the claim is allowed to be. A rubric score can never be <em>measured</em>: a prioritisation judgement is not a measurement of what changed.</figcaption>
+  </figure>
+</section>
+
+<section>
+  <h2>The five questions it forces you to face</h2>
+  <ul class="qs">
+    <li><span class="n">01</span><span>How much more productivity did we get?</span></li>
+    <li><span class="n">02</span><span>How much risk did we reduce?</span></li>
+    <li><span class="n">03</span><span>What new capabilities do we now have?</span></li>
+    <li><span class="n">04</span><span>How much cost did we avoid?</span></li>
+    <li><span class="n">05</span><span>How many employees and functions were enabled?</span></li>
+  </ul>
+  <p class="col" style="margin-top:20px"><strong>Risk and reach are the two that get missed.</strong> Cost and time sit on the surface of a status report; control-exception counts and headcount reach do not. The skill hunts for those two specifically — and where the evidence is silent, it says so.</p>
+  <div class="pull">"No baseline exists, so win rate is not claimed" is a finding, not a failure.</div>
+</section>
+
+<section>
+  <h2>What it is, and what it is not</h2>
+  <div class="two">
+    <div class="cell y">
+      <span class="tag">It does</span>
+      <h3>Impose a discipline</h3>
+      <p>Tiered claims, traceable figures, a fixed narrative arc, and the five questions answered or explicitly declined.</p>
+    </div>
+    <div class="cell y">
+      <span class="tag">It does</span>
+      <h3>Make the evidence gap visible</h3>
+      <p>Most initiative records have a confident outcome sentence and no baseline behind it. This makes that specific rather than vague.</p>
+    </div>
+    <div class="cell n">
+      <span class="tag">It does not</span>
+      <h3>Enforce anything</h3>
+      <p>It is a prompt. A narrative that ignores the rules looks identical to one that follows them. The discipline is the reader's to keep.</p>
+    </div>
+    <div class="cell n">
+      <span class="tag">It does not</span>
+      <h3>Supply the evidence</h3>
+      <p>If the before-and-after numbers were never recorded, it makes that plain. It cannot fill the gap — and that is usually the real finding.</p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2>Why a skill, and not an application</h2>
+  <p class="lede col">Because there is nothing here to compute. No database, no state, no users to administer — <b>the work is judgement, and the output is one document somebody writes once.</b> An application would be a login wrapped around a page of rules.</p>
+
+  <figure>
+    <div class="figbox">
+      <svg viewBox="0 0 700 250" role="img" aria-label="Two options compared. Building an application adds a second system holding a copy of the portfolio records, requiring an export, a sync and its own login. The skill instead rides inside the assistant people already use against the existing repository, adding no new system and no second copy of the data.">
+        <defs>
+          <marker id="a1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="var(--dim)"/></marker>
+          <marker id="a2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="var(--acc)"/></marker>
+        </defs>
+
+        <text x="0" y="14" class="t">OPTION A — BUILD AN APP</text>
+        <line x1="0" y1="22" x2="700" y2="22" stroke="var(--rule)"/>
+        <rect x="0" y="38" width="128" height="52" rx="7" class="bx"/>
+        <text x="64" y="60" text-anchor="middle" style="font-size:12px">repository app</text>
+        <text x="64" y="77" text-anchor="middle" class="s">the records live here</text>
+        <path d="M128 64 H182" stroke="var(--dim)" stroke-width="1.5" fill="none" marker-end="url(#a1)"/>
+        <text x="155" y="56" text-anchor="middle" class="s">export</text>
+        <rect x="186" y="32" width="150" height="64" rx="7" class="bx" stroke-dasharray="5 4"/>
+        <text x="261" y="56" text-anchor="middle" style="font-size:12px">a second system</text>
+        <text x="261" y="73" text-anchor="middle" class="s">own store · own login</text>
+        <text x="261" y="88" text-anchor="middle" class="s">own support burden</text>
+        <path d="M261 96 V116 H64 V90" stroke="var(--dim)" stroke-width="1.5" fill="none" stroke-dasharray="4 4" marker-end="url(#a1)"/>
+        <text x="150" y="112" class="s">and now it has to stay in sync</text>
+        <path d="M336 64 H392" stroke="var(--dim)" stroke-width="1.5" fill="none" marker-end="url(#a1)"/>
+        <rect x="396" y="38" width="104" height="52" rx="7" class="bx"/>
+        <text x="448" y="68" text-anchor="middle" style="font-size:12px">the page</text>
+        <text x="520" y="58" class="s">A second copy of the records is a second</text>
+        <text x="520" y="74" class="s">version of the truth — the exact problem</text>
+        <text x="520" y="90" class="s">this tool exists to argue against.</text>
+
+        <text x="0" y="160" class="t">OPTION B — A SKILL</text>
+        <line x1="0" y1="168" x2="700" y2="168" stroke="var(--rule)"/>
+        <rect x="0" y="184" width="128" height="52" rx="7" class="bx"/>
+        <text x="64" y="206" text-anchor="middle" style="font-size:12px">repository app</text>
+        <text x="64" y="223" text-anchor="middle" class="s">unchanged</text>
+        <path d="M128 210 H182" stroke="var(--acc)" stroke-width="2" fill="none" marker-end="url(#a2)"/>
+        <rect x="186" y="184" width="150" height="52" rx="7" fill="none" stroke="var(--acc)" stroke-width="2"/>
+        <text x="261" y="206" text-anchor="middle" style="font-size:12px">the assistant they</text>
+        <text x="261" y="223" text-anchor="middle" style="font-size:12px">already use</text>
+        <path d="M336 210 H392" stroke="var(--acc)" stroke-width="2" fill="none" marker-end="url(#a2)"/>
+        <rect x="396" y="184" width="104" height="52" rx="7" class="bx"/>
+        <text x="448" y="214" text-anchor="middle" style="font-size:12px">the page</text>
+        <text x="520" y="200" class="s">No new system. No second copy.</text>
+        <text x="520" y="216" class="s">Nothing to roll out, log into,</text>
+        <text x="520" y="232" class="s">procure or support.</text>
+      </svg>
+    </div>
+    <figcaption>The skill is a page of instructions the assistant reads. It rides alongside the repository rather than duplicating it — so the records stay in one place, and there is no integration to build or maintain.</figcaption>
+  </figure>
+
+  <div class="two">
+    <div class="cell y">
+      <span class="tag">Weight</span>
+      <h3>One file against a codebase</h3>
+      <p>The application version of this existed: twenty-one modules, a build step, a browser dependency, 389 tests. It was removed. The prompt does the same job at a fraction of the weight.</p>
+    </div>
+    <div class="cell y">
+      <span class="tag">Integration</span>
+      <h3>It meets people where they are</h3>
+      <p>It drops into the assistant already pointed at the repository. No export, no connector, no second source of truth.</p>
+    </div>
+    <div class="cell y">
+      <span class="tag">Change</span>
+      <h3>A rule change is a sentence</h3>
+      <p>Adjusting how a claim is judged means editing a line and saving. In an application it means a release.</p>
+    </div>
+    <div class="cell n">
+      <span class="tag">The trade</span>
+      <h3>No floor under a bad day</h3>
+      <p>An application could refuse to publish. A prompt can only advise. That is the whole of what is given up, and it is worth it until other people start authoring these unattended.</p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2>Using it</h2>
+  <p class="lede col">One file, about 120 lines. No install, no dependencies, no account.</p>
+<pre>Claude Code, one project   .claude/skills/value-story/SKILL.md
+Claude Code, everywhere    ~/.claude/skills/value-story/SKILL.md
+Copilot in VS Code         .github/copilot-instructions.md
+Anything else              paste it into the conversation</pre>
+  <p class="col">Then, in plain language: <em>build a value story for this initiative from the documents in ./sources</em>.</p>
+  <p class="col">Five sample initiative packets ship alongside it, in portfolio-record format — including one built entirely as a trap, where a rubric grade moved from 2 to 5 between assessments and a draft steering slide already presents it as a result. If the skill refuses that, it will hold on a real record.</p>
+</section>
+
+<p class="foot">github.com/intelliorion/value-story · one skill file · five sample corpora</p>
+
+</div>

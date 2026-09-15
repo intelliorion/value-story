@@ -17,6 +17,12 @@ and gaps that are named rather than filled in.
 
 Then: *"build a value story for this initiative from the documents in ./sources"*.
 
+## Executive summary
+
+[`docs/executive-summary.html`](docs/executive-summary.html) — a one-page brief
+for leadership: what the skill enforces, why it is a skill rather than an
+application, and what it deliberately cannot do. Open it in a browser.
+
 ## What it enforces
 
 - **You cannot cite what you did not read.**

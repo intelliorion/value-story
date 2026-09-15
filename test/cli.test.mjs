@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, writeFileSync, existsSync } from 'node:fs';
+import { mkdtempSync, readFileSync, writeFileSync, existsSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -159,4 +159,27 @@ test('`vs schema` carries the closed enumerations an author must not guess', () 
   const parsed = JSON.parse(printed);
   assert.equal(parsed.$defs.driver.enum.length, 10);
   assert.ok(!printed.includes('common.schema.json'));
+});
+
+// `npm link` and `npm i -g` publish `bin/vs.mjs` as the `vs` command, which
+// needs the executable bit AND the shebang. Losing either makes the package
+// installable but not runnable -- a failure that only shows up on someone
+// else's machine, after install, which is the worst place to find it.
+test('the bin is installable: executable, with a shebang', () => {
+  const mode = statSync(CLI).mode;
+  assert.equal(mode & 0o100, 0o100, 'bin/vs.mjs must be executable by its owner');
+  assert.ok(readFileSync(CLI, 'utf8').startsWith('#!/usr/bin/env node'),
+    'bin/vs.mjs must start with a shebang or a PATH install cannot run it');
+});
+
+// A globally installed skill is invoked from whatever project the user is in,
+// never from this repo, so nothing the CLI reads may be resolved against cwd.
+test('every command works from an unrelated working directory', () => {
+  const elsewhere = mkdtempSync(join(tmpdir(), 'vs-cwd-'));
+  const schema = execFileSync('node', [CLI, 'schema'], { cwd: elsewhere, stdio: 'pipe' }).toString();
+  assert.ok(JSON.parse(schema).$defs.driver.enum.length === 10,
+    'vs schema must resolve its own files, not files under the caller\'s cwd');
+  const out = join(elsewhere, 'out.html');
+  execFileSync('node', [CLI, 'deliver', FIXTURE, out, '--json'], { cwd: elsewhere, stdio: 'pipe' });
+  assert.ok(existsSync(out));
 });

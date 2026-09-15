@@ -6,7 +6,7 @@ import { ARC_SLOTS, CHAPTERS_CSS } from '../src/render/chapters.mjs';
 
 const doc = {
   schema_version: 1,
-  meta: { title: 'Intake Triage', owner: 'J. Hao', period: '2026-08', motion: 'entry' },
+  meta: { title: 'Intake Triage', owner: 'K. Lindqvist', period: '2026-08', motion: 'entry' },
   initiative: { id: 'int-01', name: 'Intake Triage', sponsor: 'S. Tzou', function: 'Ops', status: 'live' },
   drivers: { primary: 'labor-cost-efficiency', secondary: ['productivity'] },
   arc: {

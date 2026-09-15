@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "meta": { "title": "Intake Triage", "owner": "J. Hao", "period": "2026-08",
+  "meta": { "title": "Intake Triage", "owner": "K. Lindqvist", "period": "2026-08",
             "quality_profile": "showcase", "motion": "entry" },
   "initiative": { "id": "int-01", "name": "Intake Triage", "sponsor": "S. Tzou",
                   "function": "Operations", "status": "live" },

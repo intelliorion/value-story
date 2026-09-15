@@ -136,7 +136,7 @@ test('driverGroup classifies and returns null for unknown ids', () => {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `cd /Users/chongranhao/github/value-story && node --test test/drivers.test.mjs`
+Run: `node --test test/drivers.test.mjs` from the repository root
 Expected: FAIL — `Cannot find module '../src/drivers.mjs'`
 
 - [ ] **Step 3: Write package.json and the implementation**
@@ -932,7 +932,7 @@ import { ARC_SLOTS } from '../src/render/chapters.mjs';
 
 const doc = {
   schema_version: 1,
-  meta: { title: 'Intake Triage', owner: 'J. Hao', period: '2026-08', motion: 'entry' },
+  meta: { title: 'Intake Triage', owner: 'K. Lindqvist', period: '2026-08', motion: 'entry' },
   initiative: { id: 'int-01', name: 'Intake Triage', sponsor: 'S. Tzou', function: 'Ops', status: 'live' },
   drivers: { primary: 'labor-cost-efficiency', secondary: ['productivity'] },
   arc: {
@@ -1232,7 +1232,7 @@ The fixture is **synthetic**. Replace its content with a real initiative during 
 ```json
 {
   "schema_version": 1,
-  "meta": { "title": "Intake Triage", "owner": "J. Hao", "period": "2026-08",
+  "meta": { "title": "Intake Triage", "owner": "K. Lindqvist", "period": "2026-08",
             "quality_profile": "showcase", "motion": "entry" },
   "initiative": { "id": "int-01", "name": "Intake Triage", "sponsor": "S. Tzou",
                   "function": "Operations", "status": "live" },
@@ -1326,7 +1326,7 @@ git commit -m "feat: add render CLI, synthetic fixture, and fingerprint catalogu
 
 ---
 
-**M0 exit gate.** Render a real initiative, look at it, and show it to Sean. Do not begin M1 until the visual is one you would put in front of Nigel. If it is not, keep iterating in Task 7 — schema rigor cannot rescue a weak artifact.
+**M0 exit gate.** Render a real initiative, look at it, and show it to the narrative owner. Do not begin M1 until the visual is one you would put in front of the executive sponsor. If it is not, keep iterating in Task 7 — schema rigor cannot rescue a weak artifact.
 
 ---
 

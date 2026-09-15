@@ -2,7 +2,7 @@
 
 **Date:** 2026-09-13
 **Status:** Approved design, pre-implementation
-**Author:** johnny.hao@intelliorion.com
+**Author:** internal
 
 ---
 
@@ -12,8 +12,9 @@ Turn a project's existing documentation into a validated, visually exceptional,
 self-contained HTML narrative that answers leadership's questions about the
 business value of an AI initiative.
 
-The audience is fixed and known. Nigel wants business value immediately, not
-technology. Sean has stated the framing he wants every initiative to use:
+The audience is fixed and known. The EXECUTIVE SPONSOR wants business value
+immediately, not technology. The NARRATIVE OWNER has stated the framing they
+want every initiative to use:
 
 > Don't say: "We built a GenAI solution."
 > Instead say: "We reduced turnaround time from X to Y, increased capacity by
@@ -123,7 +124,7 @@ dates.
 ### 4.2 `arc` — the fixed four-slot narrative
 
 `arc` is an object with exactly four required slots, not an ordered array. The
-slots are Sean's four questions:
+slots are the narrative owner's four questions:
 
 1. `problem` — What problem existed?
 2. `capability` — What capability did AI unlock?
@@ -613,7 +614,7 @@ days than in weeks. The renderer is kept; the hand-written JSON becomes the test
 fixture. Authoring the IR by hand also validates §4: a field that is awkward to
 fill in is wrong.
 
-**Exit:** show it to Sean.
+**Exit:** show it to the narrative owner.
 
 ### M1 — freeze the contract
 
@@ -677,8 +678,9 @@ should not be updated casually.
 ## 9. Decisions required before M0
 
 1. **Which initiative is the M0 fixture**, and whether it has real before/after
-   numbers. Owner: Johnny.
-2. **Whether Sean and Majid review this design before build.** The value-driver
+   numbers. Owner: the project owner.
+2. **Whether the narrative owner and the second reviewer sign off this design
+   before build.** The value-driver
    taxonomy is theirs; the claim-tier model and the evidence standard are new
    and carry organizational consequences — particularly the requirement to name
    an owner for every estimate.

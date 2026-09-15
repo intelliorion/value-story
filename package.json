@@ -9,6 +9,7 @@
     "test": "node --test \"test/*.test.mjs\"",
     "build:validators": "node scripts/generate-validators.mjs",
     "build:adapters": "node scripts/generate-adapters.mjs",
+    "build:standalone": "node scripts/build-standalone.mjs",
     "build:gallery": "node scripts/build-gallery.mjs",
     "visual-check": "node ./bin/vs.mjs visual-check"
   },

@@ -12,6 +12,7 @@ Each folder is a corpus: point the skill at it and ask for a value story.
 | `02-delivered-measured` | in service, with a real system export | Measured claims with a before and after. The strongest case in the set — 4 of 5 questions answerable. |
 | `03-delivered-assumed-only` | in service, confident prose, no data | At best `estimated`, and only where somebody is named. The benefit statement reads like a result and is not one. |
 | `04-rubric-trap` | rubric scores that look like KPIs | Nothing here may become a `measured` claim. Tests whether a prioritisation grade gets promoted to a business result. |
+| `05-mixed-tiers` | in service, evidence of all three strengths | Exercises every tier at once: measured figures from a system export, one estimate a named role will own, and a capability with no number. Reach is unanswerable. |
 
 ## What to check in the output
 

@@ -109,7 +109,7 @@ const crlf = (s) => s.replace(/\n/g, '\r\n');
 test('a quoted-printable .eml decodes, takes its title from Subject, and shows its headers', () => {
   const dir = tmp();
   const eml = crlf([
-    'From: Dana Rivera <dana@example.com>',
+    'From: Legal Operations <legal-ops@example.com>',
     'To: leadership@example.com',
     'Date: Mon, 8 Sep 2025 09:14:02 -0400',
     'Subject: Cycle time after the pilot',
@@ -124,7 +124,7 @@ test('a quoted-printable .eml decodes, takes its title from Subject, and shows i
   assert.equal(doc.kind, 'email');
   assert.equal(doc.title, 'Cycle time after the pilot');
   assert.match(doc.text, /^Subject: Cycle time after the pilot$/m);
-  assert.match(doc.text, /^From: Dana Rivera <dana@example\.com>$/m);
+  assert.match(doc.text, /^From: Legal Operations <legal-ops@example\.com>$/m);
   assert.match(doc.text, /^Date: Mon, 8 Sep 2025 09:14:02 -0400$/m);
   // the soft line break must vanish, joining the two halves of one sentence
   assert.match(doc.text, /fell from 14 days to 9 days\./);
@@ -135,7 +135,7 @@ test('a base64 .eml decodes its body', () => {
   const dir = tmp();
   const body = 'Adoption reached 61% of licensed seats — café included.\n';
   const eml = crlf([
-    'From: Sam Oyelaran <sam@example.com>',
+    'From: Claims Operations <claims-ops@example.com>',
     'Date: Tue, 9 Sep 2025 11:00:00 +0000',
     'Subject: Adoption update',
     'Content-Type: text/plain; charset=utf-8',

@@ -6,6 +6,13 @@ and gaps that are named rather than filled in.
 
 **[`SKILL.md`](SKILL.md) is the whole thing.** One file, ~120 lines, no install.
 
+## Two skills in here
+
+| | |
+|---|---|
+| [`SKILL.md`](SKILL.md) | the generic value-story skill — turn documents about an initiative into a narrative where every number is traceable |
+| [`ms-cs-ttia-office-hours/`](ms-cs-ttia-office-hours/) | the Morgan Stanley Corporate Services CSIC version — pathway guidance, intake gate, submission sheet, and the value report |
+
 ## Use it
 
 | Tool | Where to put it |

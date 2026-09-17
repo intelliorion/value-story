@@ -31,6 +31,22 @@ Knowledge is for lookup; instructions are for rules.
    - "How do I measure whether this worked?"
 5. **Publish to Teams**, where CS functions already are.
 
+## What was changed for Copilot, and why
+
+Copilot is trained hard toward agreeableness, so three things were converted
+from behaviour into structure — models skip judgements, they do not skip
+templates:
+
+| was | is now |
+|---|---|
+| "push twice on vague answers" | the **exact second push**, verbatim, for each of the six questions, plus a list of what counts as vague |
+| "reach a verdict" | a **mandatory fill-in block** the agent must emit before any submission |
+| "do not build a polished form for a weak case" | the **exact words to say** when someone asks to skip ahead |
+
+There is also a **STATE block** the agent rebuilds at the end of every reply.
+Studio conversations lose earlier turns, and without it the verdict gets made
+without the evidence that should inform it.
+
 ## Two things that do not transfer
 
 **No file writing.** Copilot Studio cannot produce `submission.html` and

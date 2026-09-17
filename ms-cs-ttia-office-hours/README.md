@@ -17,6 +17,17 @@ Adapted from the structure of a YC-style product diagnostic, with the questions
 rebuilt — a venture diagnostic rests on "will a stranger pay", which has no
 meaning in a function where nobody pays.
 
+## Three ways to run it
+
+| | how |
+|---|---|
+| **Claude Code** | `SKILL.md` into `~/.claude/skills/ms-cs-ttia-office-hours/` — proactive, writes the HTML pages as files |
+| **Copilot in VS Code** | `SKILL.md` into `.github/copilot-instructions.md` |
+| **Copilot Studio agent** | `copilot-studio/` — a 6.5k instruction block plus knowledge files, publishable to Teams |
+
+The Copilot Studio version exists because the full skill is 43.6k characters and
+the instruction box holds about 8k. See [`copilot-studio/README.md`](copilot-studio/README.md).
+
 ## Install
 
 ```
